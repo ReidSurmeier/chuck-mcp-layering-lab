@@ -1,0 +1,43 @@
+FROM pytorch/pytorch:2.6.0-cuda12.6-cudnn9-runtime
+
+# System deps
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgl1-mesa-glx libglib2.0-0 wget curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Upgrade PyTorch for RTX 5090 Blackwell (sm_120)
+RUN pip install --no-cache-dir --upgrade torch torchvision --index-url https://download.pytorch.org/whl/cu128
+
+WORKDIR /app
+
+# Install Python deps first (cache layer)
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt \
+    && pip install --no-cache-dir slowapi ultralytics realesrgan basicsr
+
+# Download model weights at build time (baked into image)
+RUN wget -q https://github.com/ultralytics/assets/releases/download/v8.3.0/sam2.1_l.pt -O /app/sam2.1_l.pt
+RUN mkdir -p /app/weights && \
+    wget -q https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.1/RealESRGAN_x2plus.pth \
+    -O /app/weights/RealESRGAN_x2plus.pth
+
+# Create non-root user
+RUN useradd -m -u 1000 appuser
+
+# Copy backend code
+COPY --chown=appuser:appuser . .
+
+# GPU mode + auth via env vars at runtime
+ENV GPU_MODE=1
+ENV PYTHONUNBUFFERED=1
+
+# Run as non-root
+USER appuser
+
+EXPOSE 8001
+
+# Install runpod SDK
+RUN pip install --no-cache-dir runpod
+
+# RunPod serverless: handler mode (queue-based, pay-per-second)
+CMD ["python3", "serverless_handler.py"]

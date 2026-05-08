@@ -1,0 +1,11 @@
+[run]
+source = .
+omit =
+    tests/*
+    separate_v2_backup.py
+    overnight_optimize.py
+
+[report]
+exclude_lines =
+    pragma: no cover
+    if __name__

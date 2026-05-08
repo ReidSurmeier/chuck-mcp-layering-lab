@@ -1,0 +1,5 @@
+[boot]
+systemd=true
+command=/usr/local/bin/colorsep-boot.sh
+[user]
+default=reidsurmeier2

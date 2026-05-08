@@ -1,0 +1,560 @@
+/*
+ * garden.css — site-wide theme.
+ *
+ * Pulls reidsurmeier.garden's design system onto color.separator and
+ * cnc.woodblock. Reference: docs/STYLE-GUIDE-GARDEN.md.
+ *
+ * Design tokens from the garden:
+ *   font       Arial, Helvetica, sans-serif
+ *   font-size  14px
+ *   bg         #ffffff
+ *   text       #000
+ *   accent     rgba(79, 143, 254, 0.5)  ← headings, borders, selection
+ *   link       rgb(84, 136, 226)
+ *   link-hover rgb(127, 174, 255)
+ *   border     1px dotted rgba(79,143,254,0.5)  ← on every card / input / button
+ *   spacing    h3 margin-top 1em, line-height 1.6
+ *
+ * This file is loaded AFTER globals.css in layout.tsx, so it overrides.
+ */
+
+:root {
+  --garden-blue: rgba(79, 143, 254, 0.5);
+  --garden-blue-solid: #4f8ffe;
+  --garden-link: rgb(84, 136, 226);
+  --garden-link-hover: rgb(127, 174, 255);
+  --garden-bg: #ffffff;
+  --garden-font: Arial, Helvetica, sans-serif;
+}
+
+/* --- Base typography -------------------------------------------------- */
+
+html,
+body {
+  background: var(--garden-bg) !important;
+  color: #000;
+  font-family: var(--garden-font) !important;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+body,
+button,
+input,
+select,
+textarea,
+pre,
+code,
+.app-title,
+.cnc-field-label,
+.cnc-size-label,
+.cnc-size-value,
+.cnc-kento-info,
+.cnc-stock-info,
+.cnc-empty,
+.cnc-drop-zone,
+.cnc-drop-hint,
+.back-to-tools,
+.back-to-tools a {
+  font-family: var(--garden-font) !important;
+}
+
+/* Kill the site-specific display faces inherited from globals.css. */
+.app-title,
+.process-btn,
+.nav-panel button,
+.cnc-mode-toggle button {
+  font-family: var(--garden-font) !important;
+  letter-spacing: 0 !important;
+}
+
+pre,
+code {
+  white-space: pre-line;
+}
+
+/* Headings everywhere: the garden's flat, 50%-blue look. */
+h1, h2, h3, h4, h5, h6 {
+  font-size: 1em;
+  font-weight: normal;
+  color: var(--garden-blue) !important;
+  margin: 0;
+  line-height: 1.6;
+  font-family: var(--garden-font) !important;
+}
+
+/* Sidebar h3 — add a little air above, matches the garden's card titling. */
+.nav-panel h3,
+.side-panel h3,
+.controls-panel h3 {
+  margin-top: 1.2em;
+  margin-bottom: 0.4em;
+}
+
+a {
+  color: var(--garden-link);
+}
+a:hover {
+  color: var(--garden-link-hover);
+}
+
+::selection {
+  background-color: var(--garden-blue);
+}
+
+/* --- Kill all greens -------------------------------------------------- */
+
+button[data-active="true"],
+button.active,
+button:active,
+.process-btn,
+.process-btn:hover,
+.process-btn:disabled {
+  background: var(--garden-bg) !important;
+  color: var(--garden-blue-solid) !important;
+}
+
+/* --- Buttons — garden dotted-blue, Arial ------------------------------ */
+
+button {
+  border: 1px dotted var(--garden-blue) !important;
+  background: var(--garden-bg) !important;
+  color: #000;
+  font-family: var(--garden-font) !important;
+  font-size: 14px !important;
+  line-height: 1.6 !important;
+  border-radius: 0 !important;
+  padding: 2px 8px !important;
+  font-weight: normal !important;
+  letter-spacing: 0 !important;
+}
+
+button:hover {
+  background: color-mix(in srgb, var(--garden-blue) 15%, var(--garden-bg)) !important;
+  color: #000 !important;
+}
+
+button[data-active="true"] {
+  border-style: solid !important;
+  border-color: var(--garden-blue-solid) !important;
+  color: var(--garden-blue-solid) !important;
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: default;
+  background: var(--garden-bg) !important;
+}
+
+.process-btn {
+  border: 1px solid var(--garden-blue-solid) !important;
+  color: var(--garden-blue-solid) !important;
+  font-weight: normal !important;
+}
+
+/* --- Inputs ---------------------------------------------------------- */
+
+input[type="text"],
+input[type="number"],
+select,
+textarea {
+  border: none !important;
+  border-bottom: 1px dotted var(--garden-blue) !important;
+  background: var(--garden-bg) !important;
+  color: #000 !important;
+  font-family: var(--garden-font) !important;
+  font-size: 14px !important;
+  border-radius: 0 !important;
+  padding: 2px 4px !important;
+  text-align: center;
+  outline: none;
+}
+
+/* Kill the native up/down spinners on number inputs — user types the value. */
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  appearance: none;
+  margin: 0;
+}
+
+/* Restore the native range slider — the button/input overrides above
+   would otherwise strip its track and thumb. */
+input[type="range"] {
+  -webkit-appearance: auto !important;
+  -moz-appearance: auto !important;
+  appearance: auto !important;
+  border: none !important;
+  border-bottom: none !important;
+  background: transparent !important;
+  padding: 0 !important;
+  accent-color: var(--garden-blue-solid);
+  width: auto;
+}
+
+/* --- color-separator panels ----------------------------------------- */
+
+.about-box,
+.about-section {
+  border: 1px dotted var(--garden-blue) !important;
+  background-color: var(--garden-bg);
+  padding: 0.5em 0.75em;
+  margin: 1em 0;
+}
+.about-label,
+.about-box .about-dim {
+  color: var(--garden-blue);
+}
+
+.nav-panel,
+.nav-panel-inner,
+.side-panel,
+.controls-panel {
+  border-right: 1px dotted var(--garden-blue) !important;
+  background: var(--garden-bg);
+}
+
+.plate-card,
+.plate-card-image {
+  border: 1px dotted var(--garden-blue) !important;
+  background: var(--garden-bg);
+  border-radius: 0 !important;
+}
+
+.plate-card-hex,
+.plate-card-coverage {
+  font-family: var(--garden-font) !important;
+  color: var(--garden-blue);
+}
+
+.progress-track,
+.download-progress-bar {
+  border: 1px dotted var(--garden-blue) !important;
+  background: var(--garden-bg);
+  border-radius: 0 !important;
+}
+.progress-fill,
+.download-progress-fill {
+  background: var(--garden-blue) !important;
+}
+
+.upscale-status,
+.merge-badge,
+.coverage-badge {
+  border: 1px dotted var(--garden-blue);
+  background: var(--garden-bg);
+  color: var(--garden-blue);
+  padding: 0 0.25em;
+  border-radius: 0 !important;
+}
+
+/* --- CNC tool ------------------------------------------------------- */
+
+.cnc-root,
+.main-canvas {
+  background: var(--garden-bg);
+}
+
+/* Sidebar title — card above the controls, same width as the sidebar. */
+.app-title {
+  display: block;
+  margin: 0 0 1em 0 !important;
+  padding: 0.4em 0.25em !important;
+  border: 1px dotted var(--garden-blue);
+  background: var(--garden-bg);
+  color: var(--garden-blue) !important;
+  font-family: var(--garden-font) !important;
+  font-size: 14px !important;
+  font-weight: normal !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+}
+
+/* Top "back to tools" strip — match the garden color palette. */
+.back-to-tools {
+  background: var(--garden-bg) !important;
+  border-bottom: 1px dotted var(--garden-blue) !important;
+  color: var(--garden-link) !important;
+  font-family: var(--garden-font) !important;
+  font-size: 14px !important;
+  height: 32px !important;
+}
+.back-to-tools,
+.back-to-tools a {
+  color: var(--garden-link) !important;
+  text-decoration: none !important;
+}
+.back-to-tools:hover,
+.back-to-tools a:hover {
+  color: var(--garden-link-hover) !important;
+}
+
+.cnc-drop-zone {
+  border: 1px dotted var(--garden-blue) !important;
+  color: var(--garden-blue-solid);
+  background: var(--garden-bg);
+  padding: 1em 0.75em !important;
+  margin: 0.5em 0 !important;
+}
+.cnc-drop-hint {
+  color: var(--garden-blue);
+}
+
+/* The size-info readout — every label + value is blue, lined rows. */
+.cnc-size-info,
+.cnc-batch-result,
+.cnc-plate-preview,
+.cnc-empty {
+  border: 1px dotted var(--garden-blue) !important;
+  background: var(--garden-bg);
+  padding: 0.5em 0.75em;
+  border-radius: 0 !important;
+  margin: 0.75em 0 !important;
+}
+.cnc-size-info .cnc-size-row,
+.cnc-size-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1em;
+  padding: 0.15em 0;
+}
+.cnc-size-label,
+.cnc-size-value,
+.cnc-kento-info,
+.cnc-stock-info,
+.cnc-empty {
+  color: var(--garden-blue-solid) !important;
+}
+
+/* Grouped sections in the sidebar (Block, Relief depth, Print border) —
+   wrap the h3 + fields in the dotted card treatment. */
+.cnc-section {
+  border: 1px dotted var(--garden-blue);
+  padding: 0.4em 0.6em;
+  margin: 0.75em 0;
+  background: var(--garden-bg);
+}
+.cnc-section h3 {
+  margin-top: 0.1em !important;
+  margin-bottom: 0.4em !important;
+}
+
+/* Rows inside the sidebar — a little air between. */
+.cnc-field-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  margin: 0.4em 0 !important;
+}
+.cnc-field-label {
+  color: var(--garden-blue);
+  min-width: 4.5em;
+}
+.cnc-unit {
+  color: var(--garden-blue-solid);
+  font-family: var(--garden-font) !important;
+}
+
+.cnc-mode-toggle {
+  display: flex;
+  gap: 4px;
+  margin: 0.5em 0;
+}
+
+/* --- color-separator homepage (/) ----------------------------------- */
+
+.tools-homepage {
+  background: var(--garden-bg);
+  padding: 1.5em;
+  font-family: var(--garden-font) !important;
+  font-size: 14px;
+  color: #000;
+}
+
+.tools-header {
+  margin: 0 0 1.5em 0;
+  padding: 0.4em 0.5em;
+  border: 1px dotted var(--garden-blue);
+  background: var(--garden-bg);
+  display: inline-block;
+}
+.tools-title {
+  font-family: var(--garden-font) !important;
+  font-size: 1em !important;
+  font-weight: normal !important;
+  color: var(--garden-blue) !important;
+  margin: 0 !important;
+  letter-spacing: 0 !important;
+}
+.tools-byline {
+  font-family: var(--garden-font) !important;
+  font-size: 14px !important;
+  margin-top: 0.5em !important;
+  color: #000;
+}
+.tools-byline a {
+  color: var(--garden-link);
+}
+.tools-byline a:hover {
+  color: var(--garden-link-hover);
+}
+
+.tools-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1em;
+  align-items: flex-start;
+}
+
+.tool-tile-link {
+  text-decoration: none !important;
+  color: inherit !important;
+  display: inline-block;
+}
+
+.tool-tile {
+  display: inline-block;
+  padding: 0 0.25em !important;
+  margin: 0 !important;
+  border: 1px dotted var(--garden-blue) !important;
+  background: var(--garden-bg) !important;
+  font-family: var(--garden-font) !important;
+  font-size: 14px !important;
+  color: #000 !important;
+  max-width: 300px;
+  vertical-align: top;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+}
+
+.tool-tile-header {
+  display: flex;
+  gap: 0.5em;
+  padding: 0.25em 0;
+}
+.tool-tile-num,
+.tool-tile-name,
+.tool-tile-year {
+  color: var(--garden-blue) !important;
+  font-weight: normal !important;
+}
+.tool-tile-img {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border-top: 1px dotted var(--garden-blue);
+  border-bottom: 1px dotted var(--garden-blue);
+}
+.tool-tile-screenshot,
+.tool-tile-img img {
+  object-fit: cover;
+}
+.tool-tile-placeholder {
+  color: var(--garden-blue);
+  font-size: 14px;
+  text-align: center;
+  padding: 2em 0;
+}
+.tool-tile-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 1em;
+  padding: 0.25em 0;
+}
+.tool-tile-desc {
+  color: #000;
+}
+.tool-tile-launch {
+  color: var(--garden-link);
+}
+.tool-tile-link:hover .tool-tile {
+  border-style: solid !important;
+  border-color: var(--garden-blue-solid) !important;
+}
+
+/* --- Garden item component (kept for footer plantbeds) -------------- */
+
+.garden-item {
+  display: inline-block;
+  padding: 0 0.25em;
+  margin: 1em 0;
+  border: 1px dotted var(--garden-blue);
+  background-color: var(--garden-bg);
+  font-family: var(--garden-font);
+  font-size: 14px;
+  color: #000;
+  vertical-align: top;
+}
+
+.garden-item h1,
+.garden-item h2,
+.garden-item h3,
+.garden-item h4,
+.garden-item h5,
+.garden-item h6 {
+  font-size: 1em;
+  font-weight: normal;
+  color: var(--garden-blue) !important;
+  margin: 0;
+  line-height: 1.6;
+}
+
+.garden-item p,
+.garden-item ul,
+.garden-item ol,
+.garden-item li,
+.garden-item pre,
+.garden-item code {
+  margin: 0;
+  font-family: inherit;
+}
+
+.garden-item .md {
+  max-width: 300px;
+}
+.garden-item .md p {
+  margin-top: 1em;
+}
+
+.garden-item a {
+  color: var(--garden-link);
+  text-decoration: underline;
+}
+.garden-item a:hover {
+  color: var(--garden-link-hover);
+}
+
+.garden-item img,
+.garden-item video {
+  width: auto;
+  height: auto;
+  max-width: 28em;
+  max-height: 26em;
+  display: block;
+}
+
+.garden-plantbed {
+  padding: 1.5em;
+  background: var(--garden-bg);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1em;
+  align-items: flex-start;
+  font-family: var(--garden-font);
+}
+
+@media (max-width: 768px) {
+  .garden-plantbed {
+    flex-direction: column;
+    gap: 32px;
+    padding: 1em;
+  }
+  .garden-item {
+    max-width: 100%;
+  }
+}
