@@ -48,6 +48,20 @@ One of three named, hardcoded ordered impression-family sequences (`portrait_emm
 **Solve profile**:
 Compute-budget choice — one of `fast` (60 s), `default` (180 s), `thorough` (600 s). Controls pyramid depth + iter count + wall-time. Renamed from `mode` to avoid collision with "single operational mode" framing.
 
+**Overprint**:
+An **Impression** printed on top of a previously-dried **Impression**. The dominant physical event in mokuhanga. Light path: surface → top pigment → bottom pigment → paper → bottom → top → eye. Different physics from **Mixing**.
+_Avoid_: blend, overlay (UI-overloaded), layer.
+
+**Mixing** (palette mixing):
+Two wet pigments blended in a well **before** application. Single-pass forward render via Mixbox lerp. Different physics from **Overprint**. v23-MCP's default forward render is Mixbox = mixing; mokuhanga is mostly overprint, so default render is directionally correct but absolute-color shifted ΔE 4–8 vs reality for stacks deeper than 3 impressions.
+_Avoid_: pre-mix used as a synonym for overprint — they are NOT synonyms.
+
+**Glazing**:
+Thin-layer **Overprint** where the top **Impression** is intentionally translucent to let the bottom show through. Pace-Editions process makes heavy use of glazing.
+
+**Render tier**:
+Forward-render engine choice — `t1_mixbox` (Mixbox lerp, ships v23, models mixing), `t2_empirical` (2-layer LUT from artist's swatch sheet, ships v23.1, models overprint via measured data), `t3_spectral` (K-M two-flux recursion with 8λ (K, S) fit, ships v24, models overprint via physics). Returned by `get_render_tier()` MCP tool at solve time based on available calibration + stack depth.
+
 ## Relationships
 
 - A **Plan** is one **Stack** + supporting metadata.
@@ -76,3 +90,5 @@ Compute-budget choice — one of `fast` (60 s), `default` (180 s), `thorough` (6
 - "Layer" was banned: in v21 docs it meant Mask, in v22 user docs it sometimes meant Impression, and in Qwen-Image-Layered it means RGBA channels. Use **Impression** for the print pass and **Mask** for the printed region.
 - "Underlayer" was banned: heritage science uses it for physical analytical findings; v23 outputs **designed** "inferred-underprint" candidates only.
 - "Block scans" / "registered scans" / "ground-truth masks" — explicitly OUT of scope for v23. Never claim or imply scan-driven evidence.
+- "Mixbox predicts the print" — wrong without the qualifier "**as if pre-mixed in a well**". Mixbox models **Mixing**, not **Overprint**. WB-LANG-02 lint catches the bare claim.
+- "Overlay" — overloaded between print-on-print (mokuhanga) and GUI compositing (alpha). Use **Overprint** for the print event; reserve "overlay" only for UI compositing layers.
