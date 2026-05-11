@@ -69,3 +69,5 @@ test_large.png
 
 # sentry
 .sentryclirc
+.gitnexus
+.venv-v23/
