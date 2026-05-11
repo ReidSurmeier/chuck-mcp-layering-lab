@@ -115,7 +115,7 @@ def run_iteration(job_id: str, params_override: dict = None) -> dict:
     Returns the result manifest + saves composite.
     """
     _validate_job_id(job_id)
-    import separate_v2 as v2
+    from backend import separate_v20 as v20  # noqa: E402
 
     job_dir = os.path.join(OPTIMIZE_DIR, job_id)
     img_path = os.path.join(job_dir, "input.png")
@@ -141,7 +141,7 @@ def run_iteration(job_id: str, params_override: dict = None) -> dict:
     img = Image.open(img_path).convert("RGB")
     arr = np.array(img)
 
-    result = v2.separate(
+    result = v20.separate(
         arr,
         n_plates=params["plates"],
         dust_threshold=params["dust"],

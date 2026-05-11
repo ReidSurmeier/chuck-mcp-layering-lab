@@ -88,33 +88,33 @@ def run_iteration(job_id: str, params_override: dict = None) -> dict:
     Called by the Opus subagent.
     Returns the result manifest + saves composite.
     """
-    import separate_v2 as v2
-    
+    import separate_v20 as v20
+
     job_dir = os.path.join(OPTIMIZE_DIR, job_id)
     img_path = os.path.join(job_dir, "input.png")
-    
+
     # Load params
     params_path = os.path.join(job_dir, "params.json")
     with open(params_path) as f:
         params = json.load(f)
-    
+
     if params_override:
         params.update(params_override)
         with open(params_path, "w") as f:
             json.dump(params, f)
-    
+
     # Load status
     status_path = os.path.join(job_dir, "status.json")
     with open(status_path) as f:
         status = json.load(f)
-    
+
     iteration = status.get("iteration", 0) + 1
-    
+
     # Run separation
     img = Image.open(img_path).convert("RGB")
     arr = np.array(img)
-    
-    result = v2.separate(
+
+    result = v20.separate(
         arr,
         n_plates=params["plates"],
         dust_threshold=params["dust"],
