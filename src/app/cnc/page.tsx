@@ -1,8 +1,8 @@
 "use client";
 
-import { useCncProcessor } from "@/hooks/useCncProcessor";
-import CncNavPanel from "@/components/CncNavPanel";
-import PlatePreview from "@/components/PlatePreview";
+import { useCncProcessor } from "./hooks/useCncProcessor";
+import CncNavPanel from "./components/CncNavPanel";
+import PlatePreview from "./components/PlatePreview";
 import { convertUnits } from "@/lib/cnc-engine";
 import "./cnc.css";
 
