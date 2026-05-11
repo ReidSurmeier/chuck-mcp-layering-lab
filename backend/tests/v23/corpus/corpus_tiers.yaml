@@ -1,0 +1,34 @@
+## v23-MCP corpus tier manifest
+## Authority: /tmp/research-v23-mcp-testing.md §6 — tiered ΔE gates.
+## Loaded by tests/v23/corpus/conftest.py via PyYAML.
+
+tier_1:
+  description: "Highest-quality references — solver must hit these to ship."
+  gate:
+    de_mean: 1.5
+    de_p95: 3.0
+  fixtures:
+    - close_emma_2002
+    - frankenthaler_geisha_1995
+    - hiroshige_edo_116
+    - met_hokusai_great_wave_jp1847
+    - reid_untitled_01
+
+tier_2:
+  description: "Wider corpus — looser gate; 9/12 minimum to ship."
+  gate:
+    de_mean: 3.0
+    de_p95: 6.0
+  fixtures:
+    - catalog_l22221_c299q
+    - frankenthaler_book_of_clouds_1995
+    - frankenthaler_cedarhill_1983
+    - frankenthaler_snow_pines_1995
+    - met_kunisada_plum_garden_kameido
+    - met_yoshitora_yoshida_bridge_jp3311
+    - reference_larger
+    - reference_screenshot_2025_11_23
+    - reid_mike_portrait
+    - reid_untitled_02
+    - toy_print_face_masks
+    - tyler_catalog_1986_9
