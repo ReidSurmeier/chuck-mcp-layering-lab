@@ -1,0 +1,43 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "woodblock_stack"
+version = "0.0.1"
+description = "v23-MCP server for mokuhanga plausible-plan synthesis from one image"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [{name = "Reid Surmeier"}]
+classifiers = [
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: POSIX :: Linux",
+]
+dependencies = [
+    "pydantic>=2.7",
+    "numpy>=2.0",
+    "Pillow>=10.0",
+    "filelock>=3.13",
+    "python-ulid>=2.7",
+]
+
+[project.optional-dependencies]
+mcp = ["fastmcp>=2.0"]
+solver = ["jax[cuda12]>=0.4.30", "jaxopt>=0.8", "mixbox>=2.0", "colour-science>=0.4.4"]
+io = ["opencv-contrib-python>=4.10", "scikit-image>=0.24"]
+dev = ["pytest>=8.0", "pytest-asyncio>=0.23", "mypy>=1.10", "ruff>=0.5"]
+
+[project.scripts]
+woodblock-mcp = "backend.mcp.v23_server:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["backend/mcp", "backend/services/v23"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
