@@ -1,0 +1,17 @@
+{
+  "image_id": "tyler_catalog_1986_9",
+  "source_filename": "1986.9-e1588096683282.jpg",
+  "dimensions": [
+    801,
+    905
+  ],
+  "tier": "A",
+  "license_note": "User-provided test image, personal use",
+  "category": "reference",
+  "block_count": null,
+  "color_count": null,
+  "print_order": null,
+  "block_masks": [],
+  "difficulty": "unknown",
+  "notes": "Tyler Graphics catalog entry 1986.9. Reference image for catalog cross-correlation; not a target separator input on its own. Block/color metadata pending catalog page lookup."
+}

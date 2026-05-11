@@ -1,0 +1,17 @@
+{
+  "image_id": "reid_untitled_02",
+  "source_filename": "Untitled(1).png",
+  "dimensions": [
+    1200,
+    1200
+  ],
+  "tier": "A",
+  "license_note": "User-provided test image, personal use",
+  "category": "user-work",
+  "block_count": null,
+  "color_count": null,
+  "print_order": null,
+  "block_masks": [],
+  "difficulty": "unknown",
+  "notes": "Reid Surmeier own work \u2014 untitled #02. Source-of-truth ground data not annotated yet."
+}

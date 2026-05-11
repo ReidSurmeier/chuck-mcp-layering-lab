@@ -1,0 +1,17 @@
+{
+  "image_id": "close_emma_2002",
+  "source_filename": "close_emma_2002_2048.jpg",
+  "dimensions": [
+    1658,
+    2048
+  ],
+  "tier": "A",
+  "license_note": "User-provided test image, personal use",
+  "category": "mokuhanga",
+  "block_count": 27,
+  "color_count": 113,
+  "print_order": "light_to_dark",
+  "block_masks": [],
+  "difficulty": "hard",
+  "notes": "Chuck Close + Yasu Shibata + Pace Editions 2002. 132 impressions per print (113 colors, 27 distinct blocks). Reference: Sultan, Chuck Close Prints pp. 125-169. Hardest fixture; benchmark for high-block-count mokuhanga."
+}
