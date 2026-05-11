@@ -145,8 +145,10 @@ app = FastAPI(title="Woodblock Color Separation API")
 from analytics import RequestLog  # noqa: E402
 from analytics_api import router as _analytics_router  # noqa: E402
 from job_routes import router as _job_router  # noqa: E402
+from routes.sam_v23 import router as _sam_v23_router  # noqa: E402
 app.include_router(_analytics_router)
 app.include_router(_job_router)
+app.include_router(_sam_v23_router, prefix="/api")
 
 from job_queue import cleanup_expired_jobs  # noqa: E402
 
