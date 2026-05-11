@@ -35,28 +35,12 @@ Image.MAX_IMAGE_PIXELS = MAX_IMAGE_PIXELS
 
 def get_processor(version):
     """Get the right separation module for the version."""
-    VERSION_MAP = {}
+    # Historic versions v2..v19 pruned 2026-05-10.
     try:
         import separate_v20 as v20
-        import separate_v19 as v19
-        import separate_v18 as v18
-        import separate_v17 as v17
-        import separate_v16 as v16
-        import separate_v15 as v15
-        VERSION_MAP.update({"v20": v20, "v19": v19, "v18": v18, "v17": v17, "v16": v16, "v15": v15})
+        return v20
     except ImportError:
-        pass
-
-    import separate_v14 as v14, separate_v13 as v13, separate_v12 as v12
-    import separate_v11 as v11, separate_v10 as v10, separate_v9 as v9
-    import separate_v6 as v6, separate_v5 as v5, separate_v4 as v4
-    import separate as v3, separate_v2 as v2
-    VERSION_MAP.update({
-        "v14": v14, "v13": v13, "v12": v12, "v11": v11,
-        "v10": v10, "v9": v9, "v6": v6, "v5": v5,
-        "v4": v4, "v3": v3, "v2": v2,
-    })
-    return VERSION_MAP.get(version, VERSION_MAP.get("v20"))
+        return None
 
 
 def handler(job):

@@ -113,39 +113,13 @@ export function useColorSeparator() {
   const progressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // === Computed ===
-  const hasCrfSliders = version === "v7" || version === "v8";
-  const hasSuperpixelSliders = version === "v6";
-  const hasV4Sliders = version === "v4";
-  const hasUpscaleToggle =
-    version === "v4" ||
-    version === "v6" ||
-    version === "v9" ||
-    version === "v10" ||
-    version === "v11" ||
-    version === "v14" ||
-    version === "v15" ||
-    version === "v16" ||
-    version === "v17" ||
-    version === "v18" ||
-    version === "v19" ||
-    version === "v20";
-  const hasChromaSlider =
-    version === "v4" ||
-    version === "v6" ||
-    version === "v7" ||
-    version === "v8" ||
-    version === "v9" ||
-    version === "v10" ||
-    version === "v11" ||
-    version === "v14" ||
-    version === "v15" ||
-    version === "v16" ||
-    version === "v17" ||
-    version === "v18" ||
-    version === "v19" ||
-    version === "v20";
-  const hasV9Sliders =
-    version === "v9" || version === "v10" || version === "v11" || version === "v14";
+  // v20 is the only version; booleans are simplified accordingly
+  const hasCrfSliders = false;
+  const hasSuperpixelSliders = false;
+  const hasV4Sliders = false;
+  const hasUpscaleToggle = version === "v20";
+  const hasChromaSlider = version === "v20";
+  const hasV9Sliders = false;
   const canCompare = compositeUrl !== null && sourceUrl !== null;
   const displayImage = showOriginal && canCompare ? sourceUrl : (compositeUrl ?? sourceUrl);
 

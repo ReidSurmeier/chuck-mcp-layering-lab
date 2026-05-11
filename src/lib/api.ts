@@ -252,67 +252,15 @@ function buildFormData(file: File, params: SeparationParams): FormData {
   fd.append("use_edges", String(params.useEdges));
   fd.append("edge_sigma", String(params.edgeSigma));
   fd.append("version", params.version);
-  if (params.version === "v4") {
-    if (params.upscale !== undefined) fd.append("upscale", String(params.upscale));
-    if (params.upscaleScale !== undefined) fd.append("upscale_scale", String(params.upscaleScale));
-    if (params.medianSize !== undefined) fd.append("median_size", String(params.medianSize));
-    if (params.chromaBoost !== undefined) fd.append("chroma_boost", String(params.chromaBoost));
-    if (params.shadowThreshold !== undefined)
-      fd.append("shadow_threshold", String(params.shadowThreshold));
-    if (params.highlightThreshold !== undefined)
-      fd.append("highlight_threshold", String(params.highlightThreshold));
-  }
-  if (params.version === "v6") {
-    if (params.nSegments !== undefined) fd.append("n_segments", String(params.nSegments));
-    if (params.compactness !== undefined) fd.append("compactness", String(params.compactness));
-    if (params.chromaBoost !== undefined) fd.append("chroma_boost", String(params.chromaBoost));
-    if (params.upscale !== undefined) fd.append("upscale", String(params.upscale));
-    if (params.upscaleScale !== undefined) fd.append("upscale_scale", String(params.upscaleScale));
-    if (params.shadowThreshold !== undefined)
-      fd.append("shadow_threshold", String(params.shadowThreshold));
-    if (params.highlightThreshold !== undefined)
-      fd.append("highlight_threshold", String(params.highlightThreshold));
-  }
-  if (params.version === "v7" || params.version === "v8") {
-    if (params.crfSpatial !== undefined) fd.append("crf_spatial", String(params.crfSpatial));
-    if (params.crfColor !== undefined) fd.append("crf_color", String(params.crfColor));
-    if (params.crfCompat !== undefined) fd.append("crf_compat", String(params.crfCompat));
-    if (params.chromaBoost !== undefined) fd.append("chroma_boost", String(params.chromaBoost));
-    if (params.shadowThreshold !== undefined)
-      fd.append("shadow_threshold", String(params.shadowThreshold));
-    if (params.highlightThreshold !== undefined)
-      fd.append("highlight_threshold", String(params.highlightThreshold));
-  }
-  if (["v9", "v10", "v11", "v12", "v13"].includes(params.version)) {
-    if (params.sigmaS !== undefined) fd.append("sigma_s", String(params.sigmaS));
-    if (params.sigmaR !== undefined) fd.append("sigma_r", String(params.sigmaR));
-    if (params.meanshiftSp !== undefined) fd.append("meanshift_sp", String(params.meanshiftSp));
-    if (params.meanshiftSr !== undefined) fd.append("meanshift_sr", String(params.meanshiftSr));
-    if (params.chromaBoost !== undefined) fd.append("chroma_boost", String(params.chromaBoost));
-    if (params.upscale !== undefined) fd.append("upscale", String(params.upscale));
-    if (params.upscaleScale !== undefined) fd.append("upscale_scale", String(params.upscaleScale));
-  }
-  if (params.version === "v14") {
-    if (params.sigmaS !== undefined) fd.append("sigma_s", String(params.sigmaS));
-    if (params.sigmaR !== undefined) fd.append("sigma_r", String(params.sigmaR));
-    if (params.meanshiftSp !== undefined) fd.append("meanshift_sp", String(params.meanshiftSp));
-    if (params.meanshiftSr !== undefined) fd.append("meanshift_sr", String(params.meanshiftSr));
-    if (params.chromaBoost !== undefined) fd.append("chroma_boost", String(params.chromaBoost));
-    if (params.upscale !== undefined) fd.append("upscale", String(params.upscale));
-    if (params.upscaleScale !== undefined) fd.append("upscale_scale", String(params.upscaleScale));
-    if (params.detailStrength !== undefined)
-      fd.append("detail_strength", String(params.detailStrength));
-  }
-  if (["v15", "v16", "v17", "v18", "v19", "v20"].includes(params.version)) {
-    if (params.upscale !== undefined) fd.append("upscale", String(params.upscale));
-    if (params.upscaleScale !== undefined) fd.append("upscale_scale", String(params.upscaleScale));
-    if (params.chromaBoost !== undefined) fd.append("chroma_boost", String(params.chromaBoost));
-    if (params.shadowThreshold !== undefined)
-      fd.append("shadow_threshold", String(params.shadowThreshold));
-    if (params.highlightThreshold !== undefined)
-      fd.append("highlight_threshold", String(params.highlightThreshold));
-    if (params.medianSize !== undefined) fd.append("median_size", String(params.medianSize));
-  }
+  // v20 (SAM) params
+  if (params.upscale !== undefined) fd.append("upscale", String(params.upscale));
+  if (params.upscaleScale !== undefined) fd.append("upscale_scale", String(params.upscaleScale));
+  if (params.chromaBoost !== undefined) fd.append("chroma_boost", String(params.chromaBoost));
+  if (params.shadowThreshold !== undefined)
+    fd.append("shadow_threshold", String(params.shadowThreshold));
+  if (params.highlightThreshold !== undefined)
+    fd.append("highlight_threshold", String(params.highlightThreshold));
+  if (params.medianSize !== undefined) fd.append("median_size", String(params.medianSize));
   if (params.lockedColors.length > 0) {
     fd.append("locked_colors", JSON.stringify(params.lockedColors));
   }

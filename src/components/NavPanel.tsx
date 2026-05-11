@@ -474,8 +474,8 @@ export default function NavPanel({
         </>
       )}
 
-      {/* V14 detail strength */}
-      {version === "v14" && (
+      {/* Detail strength (v14 only — hidden for v20) */}
+      {false && (
         <>
           <h3>detail {detailStrength.toFixed(2)}</h3>
           <input

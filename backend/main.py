@@ -55,34 +55,12 @@ except ImportError:
 # Concurrency limit: controlled by gpu_config (1 on CPU, 4 on GPU)
 _heavy_semaphore = asyncio.Semaphore(HEAVY_SEMAPHORE_LIMIT)
 
-import separate as v3  # noqa: E402
-import separate_v2 as v2  # noqa: E402
-import separate_v4 as v4  # noqa: E402
-import separate_v5 as v5  # noqa: E402
-import separate_v6 as v6  # noqa: E402
+# Historic versions v2..v19 pruned 2026-05-10 (woodblock fork).
+# Only v20 retained; v21_mokuhanga added in upcoming commits.
 try:
-    import separate_v7 as v7  # noqa: E402
-except ImportError:
-    v7 = None  # pydensecrf not available in CI
-try:
-    import separate_v8 as v8  # noqa: E402
-except ImportError:
-    v8 = None
-import separate_v9 as v9  # noqa: E402
-import separate_v10 as v10  # noqa: E402
-import separate_v11 as v11  # noqa: E402
-import separate_v12 as v12  # noqa: E402
-import separate_v13 as v13  # noqa: E402
-import separate_v14 as v14  # noqa: E402
-try:
-    import separate_v15 as v15  # noqa: E402
-    import separate_v16 as v16  # noqa: E402
-    import separate_v17 as v17  # noqa: E402
-    import separate_v18 as v18  # noqa: E402
-    import separate_v19 as v19  # noqa: E402
     import separate_v20 as v20  # noqa: E402
 except ImportError:
-    v15 = v16 = v17 = v18 = v19 = v20 = None
+    v20 = None
 try:
     import auto_optimize
 except ImportError:
@@ -300,10 +278,7 @@ def parse_locked_colors(raw: str | None) -> list[list[int]] | None:
 
 VERSION_MAP = {
     k: mod for k, mod in {
-        "v2": v2, "v3": v3, "v4": v4, "v5": v5, "v6": v6,
-        "v7": v7, "v8": v8, "v9": v9, "v10": v10, "v11": v11,
-        "v12": v12, "v13": v13, "v14": v14, "v15": v15, "v16": v16,
-        "v17": v17, "v18": v18, "v19": v19, "v20": v20,
+        "v20": v20,
     }.items() if mod is not None
 }
 
@@ -364,7 +339,7 @@ def get_module(version: str):
     return VERSION_MAP.get(version)
 
 
-SAM_VERSIONS = ("v15", "v16", "v17", "v18", "v19", "v20")
+SAM_VERSIONS = ("v20",)
 
 
 def check_memory_for_sam(n_colors: int = 20):
@@ -447,7 +422,7 @@ async def preview(
     use_edges: bool = Form(True),
     edge_sigma: float = Form(1.5),
     locked_colors: str | None = Form(None),
-    version: str = Form("v3"),
+    version: str = Form("v20"),
     upscale: bool = Form(True),
     upscale_scale: int = Form(2),
     median_size: int = Form(5),
@@ -521,74 +496,13 @@ async def preview(
         image_bytes=image_bytes, plates=plates, dust=dust,
         use_edges=use_edges, edge_sigma=edge_sigma, locked_colors=locked,
     )
-    if version == "v4":
-        kwargs["upscale"] = upscale
-        kwargs["median_size"] = median_size
-        kwargs["chroma_boost"] = chroma_boost
-        kwargs["shadow_threshold"] = shadow_threshold
-        kwargs["highlight_threshold"] = highlight_threshold
-    if version == "v6":
-        kwargs["n_segments"] = n_segments
-        kwargs["compactness"] = compactness
-        kwargs["chroma_boost"] = chroma_boost
-        kwargs["upscale"] = upscale
-        kwargs["shadow_threshold"] = shadow_threshold
-        kwargs["highlight_threshold"] = highlight_threshold
-    if version == "v7":
-        kwargs["crf_spatial"] = crf_spatial
-        kwargs["crf_color"] = crf_color
-        kwargs["crf_compat"] = crf_compat
-        kwargs["chroma_boost"] = chroma_boost
-        kwargs["shadow_threshold"] = shadow_threshold
-        kwargs["highlight_threshold"] = highlight_threshold
-    if version == "v8":
-        kwargs["crf_spatial"] = crf_spatial
-        kwargs["crf_color"] = crf_color
-        kwargs["crf_compat"] = crf_compat
-        kwargs["chroma_boost"] = chroma_boost
-        kwargs["shadow_threshold"] = shadow_threshold
-        kwargs["highlight_threshold"] = highlight_threshold
-        kwargs["upscale"] = upscale
-    if version == "v9":
-        kwargs["sigma_s"] = sigma_s
-        kwargs["sigma_r"] = sigma_r
-        kwargs["meanshift_sp"] = meanshift_sp
-        kwargs["meanshift_sr"] = meanshift_sr
-        kwargs["chroma_boost"] = chroma_boost
-        kwargs["upscale"] = upscale
-    if version in ("v10", "v11", "v12"):
-        kwargs["sigma_s"] = sigma_s
-        kwargs["sigma_r"] = sigma_r
-        kwargs["meanshift_sp"] = meanshift_sp
-        kwargs["meanshift_sr"] = meanshift_sr
-        kwargs["chroma_boost"] = chroma_boost
-        kwargs["upscale"] = upscale
-    if version == "v13":
-        kwargs["shadow_threshold"] = shadow_threshold
-        kwargs["highlight_threshold"] = highlight_threshold
-        kwargs["median_size"] = median_size
-        kwargs["chroma_boost"] = chroma_boost
-        kwargs["upscale"] = upscale
-    if version == "v14":
-        kwargs["sigma_s"] = sigma_s
-        kwargs["sigma_r"] = sigma_r
-        kwargs["meanshift_sp"] = meanshift_sp
-        kwargs["meanshift_sr"] = meanshift_sr
-        kwargs["shadow_threshold"] = shadow_threshold
-        kwargs["highlight_threshold"] = highlight_threshold
-        kwargs["median_size"] = median_size
-        kwargs["chroma_boost"] = chroma_boost
-        kwargs["upscale"] = upscale
-        kwargs["detail_strength"] = detail_strength
-    if version in SAM_VERSIONS:
-        kwargs["shadow_threshold"] = shadow_threshold
-        kwargs["highlight_threshold"] = highlight_threshold
-        kwargs["median_size"] = median_size
-        kwargs["chroma_boost"] = chroma_boost
-        kwargs["upscale"] = upscale
-        kwargs["upscale_scale"] = upscale_scale
-    if version == "v20" and not UPSCALE_ENABLED:
-        kwargs["upscale"] = False  # Disabled in gpu_config
+    # v20 is the only version; all requests go through the SAM path
+    kwargs["shadow_threshold"] = shadow_threshold
+    kwargs["highlight_threshold"] = highlight_threshold
+    kwargs["median_size"] = median_size
+    kwargs["chroma_boost"] = chroma_boost
+    kwargs["upscale"] = upscale if UPSCALE_ENABLED else False
+    kwargs["upscale_scale"] = upscale_scale
 
     if version in SAM_VERSIONS:
         plates = _clamp(plates, PLATES_MIN, SAM_PLATES_MAX)
@@ -738,75 +652,13 @@ async def preview_stream(
         image_bytes=image_bytes, plates=plates, dust=dust,
         use_edges=use_edges, edge_sigma=edge_sigma, locked_colors=locked,
     )
-    # Build version-specific kwargs (mirrors /api/preview logic)
-    if version == "v4":
-        kwargs["upscale"] = upscale
-        kwargs["median_size"] = median_size
-        kwargs["chroma_boost"] = chroma_boost
-        kwargs["shadow_threshold"] = shadow_threshold
-        kwargs["highlight_threshold"] = highlight_threshold
-    if version == "v6":
-        kwargs["n_segments"] = n_segments
-        kwargs["compactness"] = compactness
-        kwargs["chroma_boost"] = chroma_boost
-        kwargs["upscale"] = upscale
-        kwargs["shadow_threshold"] = shadow_threshold
-        kwargs["highlight_threshold"] = highlight_threshold
-    if version == "v7":
-        kwargs["crf_spatial"] = crf_spatial
-        kwargs["crf_color"] = crf_color
-        kwargs["crf_compat"] = crf_compat
-        kwargs["chroma_boost"] = chroma_boost
-        kwargs["shadow_threshold"] = shadow_threshold
-        kwargs["highlight_threshold"] = highlight_threshold
-    if version == "v8":
-        kwargs["crf_spatial"] = crf_spatial
-        kwargs["crf_color"] = crf_color
-        kwargs["crf_compat"] = crf_compat
-        kwargs["chroma_boost"] = chroma_boost
-        kwargs["shadow_threshold"] = shadow_threshold
-        kwargs["highlight_threshold"] = highlight_threshold
-        kwargs["upscale"] = upscale
-    if version == "v9":
-        kwargs["sigma_s"] = sigma_s
-        kwargs["sigma_r"] = sigma_r
-        kwargs["meanshift_sp"] = meanshift_sp
-        kwargs["meanshift_sr"] = meanshift_sr
-        kwargs["chroma_boost"] = chroma_boost
-        kwargs["upscale"] = upscale
-    if version in ("v10", "v11", "v12"):
-        kwargs["sigma_s"] = sigma_s
-        kwargs["sigma_r"] = sigma_r
-        kwargs["meanshift_sp"] = meanshift_sp
-        kwargs["meanshift_sr"] = meanshift_sr
-        kwargs["chroma_boost"] = chroma_boost
-        kwargs["upscale"] = upscale
-    if version == "v13":
-        kwargs["shadow_threshold"] = shadow_threshold
-        kwargs["highlight_threshold"] = highlight_threshold
-        kwargs["median_size"] = median_size
-        kwargs["chroma_boost"] = chroma_boost
-        kwargs["upscale"] = upscale
-    if version == "v14":
-        kwargs["sigma_s"] = sigma_s
-        kwargs["sigma_r"] = sigma_r
-        kwargs["meanshift_sp"] = meanshift_sp
-        kwargs["meanshift_sr"] = meanshift_sr
-        kwargs["shadow_threshold"] = shadow_threshold
-        kwargs["highlight_threshold"] = highlight_threshold
-        kwargs["median_size"] = median_size
-        kwargs["chroma_boost"] = chroma_boost
-        kwargs["upscale"] = upscale
-        kwargs["detail_strength"] = detail_strength
-    if version in SAM_VERSIONS:
-        kwargs["shadow_threshold"] = shadow_threshold
-        kwargs["highlight_threshold"] = highlight_threshold
-        kwargs["median_size"] = median_size
-        kwargs["chroma_boost"] = chroma_boost
-        kwargs["upscale"] = upscale
-        kwargs["upscale_scale"] = upscale_scale
-    if version == "v20" and not UPSCALE_ENABLED:
-        kwargs["upscale"] = False  # Disabled in gpu_config
+    # v20 is the only version; all requests go through the SAM path
+    kwargs["shadow_threshold"] = shadow_threshold
+    kwargs["highlight_threshold"] = highlight_threshold
+    kwargs["median_size"] = median_size
+    kwargs["chroma_boost"] = chroma_boost
+    kwargs["upscale"] = upscale if UPSCALE_ENABLED else False
+    kwargs["upscale_scale"] = upscale_scale
 
     if version in SAM_VERSIONS:
         plates = _clamp(plates, PLATES_MIN, SAM_PLATES_MAX)
@@ -987,7 +839,7 @@ async def separate_endpoint(
     use_edges: bool = Form(True),
     edge_sigma: float = Form(1.5),
     locked_colors: str | None = Form(None),
-    version: str = Form("v3"),
+    version: str = Form("v20"),
     upscale: bool = Form(True),
     upscale_scale: int = Form(2),
     median_size: int = Form(5),
@@ -1060,74 +912,13 @@ async def separate_endpoint(
         image_bytes=image_bytes, plates=plates, dust=dust,
         use_edges=use_edges, edge_sigma=edge_sigma, locked_colors=locked,
     )
-    if version == "v4":
-        kwargs["upscale"] = upscale
-        kwargs["median_size"] = median_size
-        kwargs["chroma_boost"] = chroma_boost
-        kwargs["shadow_threshold"] = shadow_threshold
-        kwargs["highlight_threshold"] = highlight_threshold
-    if version == "v6":
-        kwargs["n_segments"] = n_segments
-        kwargs["compactness"] = compactness
-        kwargs["chroma_boost"] = chroma_boost
-        kwargs["upscale"] = upscale
-        kwargs["shadow_threshold"] = shadow_threshold
-        kwargs["highlight_threshold"] = highlight_threshold
-    if version == "v7":
-        kwargs["crf_spatial"] = crf_spatial
-        kwargs["crf_color"] = crf_color
-        kwargs["crf_compat"] = crf_compat
-        kwargs["chroma_boost"] = chroma_boost
-        kwargs["shadow_threshold"] = shadow_threshold
-        kwargs["highlight_threshold"] = highlight_threshold
-    if version == "v8":
-        kwargs["crf_spatial"] = crf_spatial
-        kwargs["crf_color"] = crf_color
-        kwargs["crf_compat"] = crf_compat
-        kwargs["chroma_boost"] = chroma_boost
-        kwargs["shadow_threshold"] = shadow_threshold
-        kwargs["highlight_threshold"] = highlight_threshold
-        kwargs["upscale"] = upscale
-    if version == "v9":
-        kwargs["sigma_s"] = sigma_s
-        kwargs["sigma_r"] = sigma_r
-        kwargs["meanshift_sp"] = meanshift_sp
-        kwargs["meanshift_sr"] = meanshift_sr
-        kwargs["chroma_boost"] = chroma_boost
-        kwargs["upscale"] = upscale
-    if version in ("v10", "v11", "v12"):
-        kwargs["sigma_s"] = sigma_s
-        kwargs["sigma_r"] = sigma_r
-        kwargs["meanshift_sp"] = meanshift_sp
-        kwargs["meanshift_sr"] = meanshift_sr
-        kwargs["chroma_boost"] = chroma_boost
-        kwargs["upscale"] = upscale
-    if version == "v13":
-        kwargs["shadow_threshold"] = shadow_threshold
-        kwargs["highlight_threshold"] = highlight_threshold
-        kwargs["median_size"] = median_size
-        kwargs["chroma_boost"] = chroma_boost
-        kwargs["upscale"] = upscale
-    if version == "v14":
-        kwargs["sigma_s"] = sigma_s
-        kwargs["sigma_r"] = sigma_r
-        kwargs["meanshift_sp"] = meanshift_sp
-        kwargs["meanshift_sr"] = meanshift_sr
-        kwargs["shadow_threshold"] = shadow_threshold
-        kwargs["highlight_threshold"] = highlight_threshold
-        kwargs["median_size"] = median_size
-        kwargs["chroma_boost"] = chroma_boost
-        kwargs["upscale"] = upscale
-        kwargs["detail_strength"] = detail_strength
-    if version in SAM_VERSIONS:
-        kwargs["shadow_threshold"] = shadow_threshold
-        kwargs["highlight_threshold"] = highlight_threshold
-        kwargs["median_size"] = median_size
-        kwargs["chroma_boost"] = chroma_boost
-        kwargs["upscale"] = upscale
-        kwargs["upscale_scale"] = upscale_scale
-    if version == "v20" and not UPSCALE_ENABLED:
-        kwargs["upscale"] = False  # Disabled in gpu_config
+    # v20 is the only version; all requests go through the SAM path
+    kwargs["shadow_threshold"] = shadow_threshold
+    kwargs["highlight_threshold"] = highlight_threshold
+    kwargs["median_size"] = median_size
+    kwargs["chroma_boost"] = chroma_boost
+    kwargs["upscale"] = upscale if UPSCALE_ENABLED else False
+    kwargs["upscale_scale"] = upscale_scale
 
     if version in SAM_VERSIONS:
         plates = _clamp(plates, PLATES_MIN, SAM_PLATES_MAX)
@@ -1212,10 +1003,9 @@ async def upscale_endpoint(
         pass
     rlog.set_params(upscale_scale=upscale_scale)
     with rlog.stage("upscale"):
-        if v20 is not None:
-            img_hash, cached, success = v20.upscale_and_cache(image_bytes, scale=upscale_scale)
-        else:
-            img_hash, cached, success = v11.upscale_and_cache(image_bytes)
+        if v20 is None:
+            return JSONResponse(status_code=503, content={"error": "v20 module not available"})
+        img_hash, cached, success = v20.upscale_and_cache(image_bytes, scale=upscale_scale)
     rlog.set_cache_hit(hit=bool(cached))
     rlog.finish(status=200)
     return Response(
@@ -1231,7 +1021,7 @@ async def merge_endpoint(
     plates: int = Form(3),
     dust: int = Form(20),
     locked_colors: str | None = Form(None),
-    version: str = Form("v11"),
+    version: str = Form("v20"),
     upscale: bool = Form(True),
     upscale_scale: int = Form(2),
     chroma_boost: float = Form(1.3),
@@ -1353,7 +1143,7 @@ async def plates_endpoint(
     image: UploadFile = File(...),
     plates: int = Form(3),
     dust: int = Form(20),
-    version: str = Form("v11"),
+    version: str = Form("v20"),
     upscale: bool = Form(True),
     upscale_scale: int = Form(2),
     chroma_boost: float = Form(1.3),
@@ -1395,20 +1185,12 @@ async def plates_endpoint(
         n_plates=plates, dust_threshold=dust,
         locked_colors=locked, return_data=True,
     )
-    # Only pass params that the version's separate() accepts
-    _no_upscale_versions = ("v2", "v3", "v5", "v7")
-    _no_chroma_versions = ("v3",)
-    if version not in _no_upscale_versions:
-        kwargs["upscale"] = False  # plates endpoint always uses small thumbnails
-    if version not in _no_chroma_versions:
-        kwargs["chroma_boost"] = chroma_boost
-    # Add version-specific params
-    if version in ("v9", "v10", "v11", "v12", "v14"):
-        kwargs.update(sigma_s=sigma_s, sigma_r=sigma_r, meanshift_sp=meanshift_sp, meanshift_sr=meanshift_sr)
-    if version in SAM_VERSIONS:
-        kwargs.update(use_edges=True, edge_sigma=1.5, shadow_threshold=8, highlight_threshold=95, median_size=3)
-        kwargs["n_plates"] = _clamp(plates, PLATES_MIN, SAM_PLATES_MAX)
-        kwargs["upscale_scale"] = upscale_scale
+    # v20 (SAM) params
+    kwargs["upscale"] = False  # plates endpoint always uses small thumbnails
+    kwargs["chroma_boost"] = chroma_boost
+    kwargs.update(use_edges=True, edge_sigma=1.5, shadow_threshold=8, highlight_threshold=95, median_size=3)
+    kwargs["n_plates"] = _clamp(plates, PLATES_MIN, SAM_PLATES_MAX)
+    kwargs["upscale_scale"] = upscale_scale
 
     if version in SAM_VERSIONS:
         ok, msg = check_memory_for_sam(n_colors=kwargs.get("n_plates", plates))
@@ -1484,7 +1266,7 @@ async def plates_stream_endpoint(
     image: UploadFile = File(...),
     plates: int = Form(3),
     dust: int = Form(20),
-    version: str = Form("v11"),
+    version: str = Form("v20"),
     upscale: bool = Form(True),
     upscale_scale: int = Form(2),
     chroma_boost: float = Form(1.3),
@@ -1544,18 +1326,12 @@ async def plates_stream_endpoint(
         n_plates=plates, dust_threshold=dust,
         locked_colors=locked, return_data=True,
     )
-    _no_upscale_versions = ("v2", "v3", "v5", "v7")
-    _no_chroma_versions = ("v3",)
-    if version not in _no_upscale_versions:
-        kwargs["upscale"] = False
-    if version not in _no_chroma_versions:
-        kwargs["chroma_boost"] = chroma_boost
-    if version in ("v9", "v10", "v11", "v12", "v14"):
-        kwargs.update(sigma_s=sigma_s, sigma_r=sigma_r, meanshift_sp=meanshift_sp, meanshift_sr=meanshift_sr)
-    if version in SAM_VERSIONS:
-        kwargs.update(use_edges=True, edge_sigma=1.5, shadow_threshold=8, highlight_threshold=95, median_size=3)
-        kwargs["n_plates"] = _clamp(plates, PLATES_MIN, SAM_PLATES_MAX)
-        kwargs["upscale_scale"] = upscale_scale
+    # v20 (SAM) params
+    kwargs["upscale"] = False
+    kwargs["chroma_boost"] = chroma_boost
+    kwargs.update(use_edges=True, edge_sigma=1.5, shadow_threshold=8, highlight_threshold=95, median_size=3)
+    kwargs["n_plates"] = _clamp(plates, PLATES_MIN, SAM_PLATES_MAX)
+    kwargs["upscale_scale"] = upscale_scale
 
     if version in SAM_VERSIONS:
         ok, msg = check_memory_for_sam(n_colors=kwargs.get("n_plates", plates))
@@ -1704,7 +1480,7 @@ async def plates_svg_endpoint(
             update_job(job_id, JobStatus.RUNNING, progress="separation")
 
             if cache_key not in v20._separation_cache:
-                # Cache miss: run v11 fallback at 800px, scale masks up
+                # Cache miss: run at 800px, scale masks up
                 _FALLBACK_DIM = 800
 
                 def _run_fallback():
