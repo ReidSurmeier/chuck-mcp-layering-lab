@@ -1,0 +1,30 @@
+{
+  "image_id": "met_yoshitora_yoshida_bridge_jp3311",
+  "source_filename": "DP143138.jpg",
+  "source": "Met OA",
+  "source_url": "https://www.metmuseum.org/art/collection/search/55422",
+  "image_url": "https://images.metmuseum.org/CRDImages/as/original/DP143138.jpg",
+  "accession_number": "JP3311",
+  "object_id": 55422,
+  "title": "Twilight, Looking at Wild Geese Flying Down Toward Yoshida Bridge",
+  "artist": "Utagawa Yoshitora",
+  "date": "January 1861",
+  "physical_dimensions_cm": [
+    35.6,
+    24.1
+  ],
+  "license": "CC0 / Public Domain (Met OA)",
+  "tier": "A",
+  "license_note": "Met Open Access CC0. Confirmed isPublicDomain=true via Met API.",
+  "category": "ukiyo-e",
+  "block_count": null,
+  "color_count": null,
+  "print_order": null,
+  "block_masks": [],
+  "difficulty": "medium",
+  "notes": "Edo-period print 1861. Block/color count unknown; gradient sky and twilight palette make a useful test of bokashi (gradient block) handling.",
+  "dimensions": [
+    2689,
+    3858
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "image_id": "frankenthaler_geisha_1995",
+  "source_filename": "frankenthaler_shibata_237-039_geisha_2048.jpg",
+  "dimensions": [
+    1409,
+    2048
+  ],
+  "tier": "A",
+  "license_note": "User-provided test image, personal use",
+  "category": "mokuhanga",
+  "block_count": null,
+  "color_count": 50,
+  "print_order": null,
+  "block_masks": [],
+  "difficulty": "hard",
+  "notes": "Frankenthaler / Tyler / Shibata mokuhanga, Tyler Graphics catalog raisonn\u00e9 1974-1985 (book 06 in _research-dossier), plate 237-039 'Geisha'. Approximate color count ~50; exact block count to extract from catalog. Color-field abstract style."
+}

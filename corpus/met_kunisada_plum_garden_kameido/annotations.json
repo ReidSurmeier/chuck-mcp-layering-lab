@@ -1,0 +1,30 @@
+{
+  "image_id": "met_kunisada_plum_garden_kameido",
+  "source_filename": "DP148126.jpg",
+  "source": "Met OA",
+  "source_url": "https://www.metmuseum.org/art/collection/search/73613",
+  "image_url": "https://images.metmuseum.org/CRDImages/as/original/DP148126.jpg",
+  "accession_number": "2007.49.273",
+  "object_id": 73613,
+  "title": "Six Poetic Sages as Young Women at the Plum Garden at Kameido",
+  "artist": "Utagawa Kunisada",
+  "date": "19th century",
+  "physical_dimensions_cm": [
+    35.9,
+    24.1
+  ],
+  "license": "CC0 / Public Domain (Met OA)",
+  "tier": "A",
+  "license_note": "Met Open Access CC0. Confirmed isPublicDomain=true via Met API.",
+  "category": "ukiyo-e",
+  "block_count": null,
+  "color_count": null,
+  "print_order": null,
+  "block_masks": [],
+  "difficulty": "medium",
+  "notes": "Kunisada figural ukiyo-e with floral/garden detail. Block/color count unknown. Useful test of figure + textile patterning vs landscape contrast.",
+  "dimensions": [
+    2773,
+    4000
+  ]
+}

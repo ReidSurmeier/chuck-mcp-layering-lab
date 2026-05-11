@@ -1,0 +1,17 @@
+{
+  "image_id": "hiroshige_edo_116",
+  "source_filename": "100-views-of-edo-8-by-ando-hiroshige-116.jpeg",
+  "dimensions": [
+    640,
+    930
+  ],
+  "tier": "A",
+  "license_note": "User-provided test image, personal use",
+  "category": "ukiyo-e",
+  "block_count": 8,
+  "color_count": 12,
+  "print_order": null,
+  "block_masks": [],
+  "difficulty": "medium",
+  "notes": "100 Views of Edo #116, Ando Hiroshige, 1856-58 series. Public domain. Typical Edo-period ukiyo-e: 8 blocks, ~12 colors. Tier-A reference for ukiyo-e baseline performance."
+}

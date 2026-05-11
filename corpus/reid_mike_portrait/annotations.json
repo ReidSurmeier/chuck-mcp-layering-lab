@@ -1,0 +1,17 @@
+{
+  "image_id": "reid_mike_portrait",
+  "source_filename": "Mike--793x1024.jpg",
+  "dimensions": [
+    793,
+    1024
+  ],
+  "tier": "A",
+  "license_note": "User-provided test image, personal use",
+  "category": "user-work",
+  "block_count": null,
+  "color_count": null,
+  "print_order": null,
+  "block_masks": [],
+  "difficulty": "unknown",
+  "notes": "Reid Surmeier own work \u2014 portrait 'Mike'. User-provided test image for personal pipeline. Ground-truth block/color counts not annotated."
+}

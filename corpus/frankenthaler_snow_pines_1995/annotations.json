@@ -1,0 +1,17 @@
+{
+  "image_id": "frankenthaler_snow_pines_1995",
+  "source_filename": "frankenthaler_shibata_237-040_snow_pines_2048.jpg",
+  "dimensions": [
+    1456,
+    2048
+  ],
+  "tier": "A",
+  "license_note": "User-provided test image, personal use",
+  "category": "mokuhanga",
+  "block_count": null,
+  "color_count": 50,
+  "print_order": null,
+  "block_masks": [],
+  "difficulty": "hard",
+  "notes": "Frankenthaler / Tyler / Shibata mokuhanga, Tyler Graphics catalog 237-040 'Snow Pines'. Approximate color count ~50; needs catalog verification. Soft-edge wash blocks."
+}

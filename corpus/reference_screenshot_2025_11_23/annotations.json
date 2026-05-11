@@ -1,0 +1,18 @@
+{
+  "image_id": "reference_screenshot_2025_11_23",
+  "source_filename": "Screenshot 2025-11-23 at 9.09.18 PM.png",
+  "source_filename_unicode_note": "Original filename contains U+202F (narrow no-break space) between '9.09.18' and 'PM' \u2014 common macOS time-format artifact.",
+  "dimensions": [
+    2930,
+    1642
+  ],
+  "tier": "A",
+  "license_note": "User-provided test image, personal use",
+  "category": "reference",
+  "block_count": null,
+  "color_count": null,
+  "print_order": null,
+  "block_masks": [],
+  "difficulty": "unknown",
+  "notes": "Reference screenshot captured 2025-11-23 (macOS). Provenance unclear; treated as reference. Filename normalized: U+202F (narrow no-break space) replaced with ASCII space in source_filename field \u2014 see source_filename_unicode_note."
+}
