@@ -1,0 +1,63 @@
+services:
+  woodblock-backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.local
+    image: woodblock-backend:dev
+    container_name: woodblock-backend
+    ports:
+      - "100.103.164.128:8011:8001"
+      - "127.0.0.1:8011:8001"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    volumes:
+      - /var/lib/woodblock/jobs:/var/lib/woodblock/jobs
+      - /var/lib/woodblock/aim:/var/lib/woodblock/aim
+    environment:
+      BACKEND_API_KEY: ${BACKEND_API_KEY:-dev-local-token}
+      GPU_MODE: "1"
+      SAM_WEIGHTS: /app/sam2.1_t.pt
+      UPSCALE_SCALE: "2"
+      OMP_NUM_THREADS: "1"
+      OPENBLAS_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8001/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+
+  woodblock-frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    image: woodblock-frontend:dev
+    container_name: woodblock-frontend
+    ports:
+      - "100.103.164.128:3013:3000"
+      - "127.0.0.1:3013:3000"
+    depends_on:
+      woodblock-backend:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: "1"
+      BACKEND_URL: http://woodblock-backend:8001
+      NEXT_PUBLIC_API_BASE: ""
+      NEXT_PUBLIC_BACKEND_URL: http://woodblock-backend:8001
+      PORT: "3000"
+      HOSTNAME: "0.0.0.0"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:3000/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s

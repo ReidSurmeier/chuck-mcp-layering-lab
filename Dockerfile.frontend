@@ -1,4 +1,4 @@
-FROM node:22.14-slim AS builder
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 
@@ -11,29 +11,42 @@ COPY . .
 
 # Build standalone — BACKEND_URL needed at build time for next.config.ts rewrites
 ENV NEXT_TELEMETRY_DISABLED=1
-ENV BACKEND_URL=http://backend:8001
+ENV BACKEND_URL=http://woodblock-backend:8001
 RUN npm run build
 
+# Discover standalone server.js at build time (exclude node_modules).
+# server.js is at .next/standalone/ in flat projects; may be nested in monorepos.
+# Copy static assets into the directory containing server.js.
+RUN set -e && \
+    SERVER_JS=$(find .next/standalone -name server.js -not -path '*/node_modules/*' -maxdepth 6 | head -1) && \
+    echo "Build-time: standalone server.js found at: $SERVER_JS" && \
+    test -n "$SERVER_JS" && \
+    STANDALONE_DIR=$(dirname "$SERVER_JS") && \
+    cp -r .next/static "$STANDALONE_DIR/.next/" && \
+    cp -r public "$STANDALONE_DIR/"
+
 # Production image
-FROM node:22.14-slim AS runner
+FROM node:22-alpine AS runner
 
 WORKDIR /app
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
-ENV BACKEND_URL=http://backend:8001
+ENV BACKEND_URL=http://woodblock-backend:8001
 
 # Create non-root user
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs
 
-# Copy standalone output + static + public
+# Copy entire standalone tree (server.js + node_modules + .next/static + public)
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-COPY --from=builder --chown=nextjs:nodejs /app/public ./public
+
+# Entrypoint: locates server.js excluding node_modules, prints loud error if missing
+COPY scripts/entrypoint-frontend.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 USER nextjs
 
-EXPOSE 8004
+EXPOSE 3000
 
-CMD ["node", "--max-http-header-size=65536", "server.js"]
+CMD ["/entrypoint.sh"]
