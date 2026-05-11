@@ -1,0 +1,83 @@
+name: Scaffold-fatal blocker (B-N)
+description: Validator-style blocker for v23-MCP scaffold. Use when a defect halts the build sequence.
+title: "[B-<N>] <one-line blast description>"
+labels: ["blocker", "v23-mcp"]
+assignees:
+  - ReidSurmeier
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Blockers are scaffold-fatal: the build sequence (D<N>.<n>) cannot continue until resolved.
+        Format follows the validator B-N convention used in `/mnt/c/Users/reidsurmeier2/Books/printmaking/v23/research-v23-mcp-corrections.md`.
+  - type: input
+    id: code
+    attributes:
+      label: Blocker code
+      description: Sequential B-N identifier. Scan existing blocker issues for the highest N, increment.
+      placeholder: "B-7"
+    validations:
+      required: true
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      description: 4-tier per ToolResult envelope (backend/mcp/errors.py).
+      options:
+        - refusal    # tool refuses to run; no artifacts produced
+        - fail       # ran, produced no usable output
+        - degraded   # ran, output present but does not meet acceptance criterion
+        - warn       # ran, output usable, but invariant or claim is suspect
+    validations:
+      required: true
+  - type: textarea
+    id: blast_radius
+    attributes:
+      label: Blast radius
+      description: Which stages/tools/files break? Which downstream D<N>.<n> steps are blocked?
+      placeholder: |
+        - blocks: S5 solver gradient flow → blocks D6, D7, D8
+        - affects: any propose_stack call with allow_underprint=true
+        - leaves intact: S1-S4 ingest path
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description: Minimal pytest command + corpus fixture that triggers the blocker.
+      render: shell
+      placeholder: |
+        pytest backend/tests/v23/stages/test_s5_solver.py::test_underprint_gradient_finite -x
+        # against fixture corpus/portraits/emma_03.png
+    validations:
+      required: true
+  - type: textarea
+    id: resolution
+    attributes:
+      label: Suggested resolution
+      description: Concrete fix path. Cite plan section or ADR if structural.
+      placeholder: |
+        Plan §7 footnote: rules 6+7 must be POST-SOLVE only (ADR-0005).
+        Move topology term out of L5 loss; relocate to s8_carveability.py topology_score().
+    validations:
+      required: true
+  - type: textarea
+    id: related_interfaces
+    attributes:
+      label: Related interfaces
+      description: MCP tools, Pydantic types, manifest fields touched.
+      placeholder: |
+        - tool: propose_stack (signature unchanged)
+        - type: Plan.warnings[] gains 'TOPOLOGY_REPAIR_RAN'
+        - manifest: tensors['topology_score'] new key
+    validations:
+      required: true
+  - type: input
+    id: plan_authority
+    attributes:
+      label: Plan authority cited
+      description: Path + section that justifies the fix.
+      placeholder: "research-v23-mcp-user-addendum-v3.md fix 1"
+    validations:
+      required: true

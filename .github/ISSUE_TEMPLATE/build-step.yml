@@ -1,0 +1,100 @@
+name: Build step (D<N>.<n>)
+description: Plan a future TDD step from /tmp/research-v23-mcp-build-sequence.md.
+title: "[D<N>.<n>] <slug>"
+labels: ["build-step", "v23-mcp"]
+assignees:
+  - ReidSurmeier
+body:
+  - type: markdown
+    attributes:
+      value: |
+        One issue per `D<N>.<n>` step. The build sequence at `/tmp/research-v23-mcp-build-sequence.md`
+        is the source of truth; this issue stages a specific row for execution.
+  - type: input
+    id: step_id
+    attributes:
+      label: Step ID
+      description: Match the sequence row exactly.
+      placeholder: "D6.5"
+    validations:
+      required: true
+  - type: input
+    id: slug
+    attributes:
+      label: Slug
+      description: kebab-case, matches branch + commit naming.
+      placeholder: "render-tier-dispatch"
+    validations:
+      required: true
+  - type: input
+    id: test_file
+    attributes:
+      label: TDD test file (write first, red)
+      placeholder: "backend/tests/v23/unit/test_render_tier_dispatch.py"
+    validations:
+      required: true
+  - type: input
+    id: code_file
+    attributes:
+      label: Code file (write second, green)
+      placeholder: "backend/services/v23/render_tier.py"
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criterion
+      description: Verbatim from the build-sequence row's "Acceptance" column.
+      placeholder: |
+        get_render_tier() defaults to "t1_mixbox" and switches to "t2_empirical"
+        when a fitted LUT is loaded via apply_calibration().
+    validations:
+      required: true
+  - type: input
+    id: loc_budget
+    attributes:
+      label: LOC budget (excluding tests)
+      description: Hard cap 400. Soft target from build sequence "LOC" column.
+      placeholder: "80"
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependency steps
+      description: Build-sequence "Dep" column. List as D<N>.<n>.
+      placeholder: |
+        - D6.3 (forward render JAX port done)
+        - D2.5 (Plan type has solve_profile field)
+    validations:
+      required: true
+  - type: dropdown
+    id: agent
+    attributes:
+      label: Specialist agent type
+      description: 7-stage pipeline Stage 2 spawn type.
+      options:
+        - coder
+        - tester
+        - system-architect
+        - researcher
+        - woodblock-specialist
+    validations:
+      required: true
+  - type: input
+    id: plan_section
+    attributes:
+      label: Plan section
+      description: Authoritative justification path + section.
+      placeholder: "research-v23-mcp-user-addendum-v4.md §3tier-architecture"
+    validations:
+      required: true
+  - type: checkboxes
+    id: gates
+    attributes:
+      label: Pre-execution gates
+      options:
+        - label: All dependency steps are merged to main
+        - label: pre-v23-D<N> rollback tag will be created before merge
+        - label: WB-LANG-01 + WB-LANG-02 stay green
+        - label: 400 LOC cap not exceeded

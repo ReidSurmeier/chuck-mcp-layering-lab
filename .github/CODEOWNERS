@@ -1,0 +1,17 @@
+# woodblock_stack (v23-MCP) — code ownership
+#
+# Reid owns everything by default. Critical paths re-declared so that
+# touching them never accidentally falls through to a future broader rule.
+# Order matters: later entries override earlier ones on path match.
+
+*                              @ReidSurmeier
+
+# v23 backend — never co-owned, no exceptions
+/backend/services/v23/         @ReidSurmeier
+/backend/mcp/                  @ReidSurmeier
+
+# Plan-authority surfaces — changes here cascade across the codebase
+/CONTEXT.md                    @ReidSurmeier
+/docs/adr/                     @ReidSurmeier
+/.github/                      @ReidSurmeier
+/pyproject.toml                @ReidSurmeier
