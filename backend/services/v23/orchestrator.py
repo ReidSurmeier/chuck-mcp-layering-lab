@@ -179,12 +179,23 @@ def run_pipeline_partial(
             solver_status = "OK"
             solver_wall_s = solve_result.wall_s
 
-            # Rough RGB-L2 → ΔE proxy until Oklab ΔE2000 lands at D10.e.
-            n = handle.width * handle.height * 3
-            mse = solve_result.final_loss / max(n, 1)
-            rms = float(mse ** 0.5)
-            reconstruction_dE_mean = round(rms * 255.0 * 0.1, 3)
-            reconstruction_dE_p95 = round(rms * 255.0 * 0.2, 3)
+            # Real ΔE76 in CIE Lab D65: forward-render with solver output,
+            # diff against the canonical target, summarise. Replaces the
+            # RGB-L2 proxy that was over/under-reporting wildly.
+            import jax.numpy as _jnp
+            from backend.services.v23.core import (
+                color as _color,
+                forward_render_jax as _fr,
+            )
+            alpha_hwm = _np.transpose(solve_result.alpha_stack, (1, 2, 0))
+            rendered_jax = _fr.forward_render(
+                _jnp.asarray(alpha_hwm, dtype=_jnp.float32),
+                _jnp.asarray(solve_result.pigment_idx, dtype=_jnp.int32),
+            )
+            rendered_rgb = _np.asarray(rendered_jax)  # (H, W, 3) in [0, 1]
+            de_summary = _color.delta_e_summary(rendered_rgb, target)
+            reconstruction_dE_mean = round(de_summary["dE_mean"], 3)
+            reconstruction_dE_p95 = round(de_summary["dE_p95"], 3)
 
             # S6 — three-state mask classification post-solve
             state_stack = s6_three_state_mask.classify_three_state(solve_result.alpha_stack)
