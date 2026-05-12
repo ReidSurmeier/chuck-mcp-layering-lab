@@ -10,7 +10,10 @@ from backend.services.v23.core import render_tier as _rt
 
 
 def simulate_overprint(plan_id: str) -> ToolResult[dict[str, Any]]:
-    """Run the chosen render tier — t1 ships real (Mixbox); t2/t3 degrade."""
+    """Run the chosen render tier — t1 real via forward_render_jax; t2/t3 degrade."""
+    from backend.services.v23 import orchestrator as _orch
+    from backend.services.v23.stages import s10_emit
+
     tier = get_render_tier().data["tier"]
     errors: list[WoodblockError] = []
     if tier != "t1_mixbox":
@@ -20,9 +23,33 @@ def simulate_overprint(plan_id: str) -> ToolResult[dict[str, Any]]:
             hint="t1_mixbox is the day-1 real path; upload swatch matrix to enable t2",
             recoverable=True,
         ))
+
+    try:
+        plan = _orch.load_plan(plan_id)
+    except _orch.OrchestratorError as exc:
+        return ToolResult(
+            ok=True,
+            data={"plan_id": plan_id, "tier": tier, "composite_path": None, "dE_map_path": None},
+            errors=[exc.error, *errors],
+        )
+
+    plan_dir = _orch._plan_dir(plan.session_id, plan.plan_id)
+    composite_path = plan_dir / "composite_overprint_t1.png"
+    composite_path.write_bytes(s10_emit._render_composite(plan))
     return ToolResult(
         ok=True,
-        data={"plan_id": plan_id, "tier": tier, "composite_path": None, "dE_map_path": None},
+        data={
+            "plan_id": plan_id,
+            "tier": tier,
+            "composite_path": str(composite_path),
+            "dE_map_path": None,
+            "reconstruction_dE_mean": plan.reconstruction_dE_mean,
+            "render_tier_note": (
+                "T1 mokuhanga simulation: Mixbox-stack lerp models palette "
+                "MIXING, not overprint glazing. Mokuhanga is overprint — expect "
+                "ΔE 4-8 drift on stacks > 3 deep until t2_empirical lands."
+            ),
+        },
         errors=errors,
     )
 
