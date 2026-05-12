@@ -116,6 +116,33 @@ def test_adjust_pull_groups_real_merge(two_plans) -> None:
     assert r.data["new_plan_id"] != p1.plan_id
 
 
+def test_alternative_stacks_real(two_plans) -> None:
+    p1, _ = two_plans
+    if not p1.impressions:
+        pytest.skip("solver produced 0 impressions on this seed")
+    from backend.mcp.tools import hitl
+    r = hitl.alternative_stacks(p1.plan_id, n=2)
+    assert r.ok is True, r.errors
+    assert r.data["n_requested"] == 2
+    assert r.data["n_succeeded"] >= 1
+    alts = [a for a in r.data["alternatives"] if a.get("status") == "OK"]
+    assert len(alts) >= 1
+    for a in alts:
+        assert a["dE_mean"] is not None
+        assert a["plan_id"] != p1.plan_id
+    # Ranked ascending
+    assert alts == sorted(alts, key=lambda a: a["dE_mean"])
+
+
+def test_alternative_stacks_invalid_n_refuses(two_plans) -> None:
+    p1, _ = two_plans
+    from backend.mcp.tools import hitl
+    r = hitl.alternative_stacks(p1.plan_id, n=0)
+    assert r.ok is False
+    r2 = hitl.alternative_stacks(p1.plan_id, n=11)
+    assert r2.ok is False
+
+
 def test_merge_by_hue_family_unknown_family_refuses(two_plans) -> None:
     p1, _ = two_plans
     from backend.mcp.tools import hitl

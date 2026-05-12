@@ -184,16 +184,145 @@ def pin_region(
 
 
 def alternative_stacks(plan_id: str, n: int = 3) -> ToolResult[dict[str, Any]]:
+    """Generate N alternative stacks by perturbing parent's palette + re-solving.
+
+    Each alternative:
+    1. Loads parent's target.npy + canonical pigment_idx
+    2. Cycles M (drop one impression, add one neighbour pigment)
+    3. Re-runs S5 solver with a fresh warm-start
+    4. Persists as a new child plan with full alpha_stack + plan.json
+
+    Ranked by reconstruction_dE_mean (lower = better visual match).
+    """
     if n < 1 or n > 10:
         return ToolResult(ok=False, data=None, errors=[
             WoodblockError(tier="refusal", code="INVALID_N",
                            message=f"n must be in [1, 10], got {n}", recoverable=True),
         ])
-    alts = [{"plan_id": f"{plan_id}_alt_{i}", "rank": i, "overall_score": 0.5 - 0.02 * i}
-            for i in range(n)]
-    return ToolResult(ok=True, data={"plan_id": plan_id, "alternatives": alts},
-                      errors=[_impl_pending("IMPL_PENDING_ALTS",
-                                            "real alternative generation lands at D11")])
+
+    import json
+    from dataclasses import asdict, replace
+    from pathlib import Path
+
+    import jax.numpy as jnp
+    import numpy as np
+
+    from backend.services.v23 import orchestrator as _orch
+    from backend.services.v23.core import color as _color, forward_render_jax as _fr
+    from backend.services.v23.stages import s5_solver
+
+    try:
+        plan = _orch.load_plan(plan_id)
+    except _orch.OrchestratorError as exc:
+        return ToolResult(ok=False, data=None, errors=[exc.error])
+
+    if plan.alpha_stack_path is None or not Path(plan.alpha_stack_path).is_file():
+        return ToolResult(ok=False, data=None, errors=[
+            WoodblockError(tier="refusal", code="NO_SOLVER_OUTPUT",
+                           message="parent plan has no alpha_stack — solver did not run",
+                           recoverable=True),
+        ])
+    parent_dir = Path(plan.alpha_stack_path).parent
+    target_path = parent_dir / "target.npy"
+    if not target_path.is_file():
+        return ToolResult(ok=False, data=None, errors=[
+            WoodblockError(tier="refusal", code="NO_TARGET_CACHE",
+                           message="parent plan has no persisted target.npy",
+                           recoverable=True),
+        ])
+
+    target = np.load(target_path)  # (H, W, 3) in [0, 1]
+    parent_alpha = np.load(plan.alpha_stack_path)  # (M, H, W)
+    parent_pigment = np.asarray(plan.pigment_idx, dtype=np.int32)
+    M_parent = parent_pigment.shape[0]
+    H, W = target.shape[:2]
+
+    rng = np.random.default_rng(int(plan.image_sha256[:8], 16) & 0xFFFFFFFF)
+    pigment_neighbours = {
+        0: [1, 2], 1: [0, 2], 2: [1, 3], 3: [2, 4], 4: [3, 5], 5: [4, 6],
+        6: [5, 7], 7: [6, 8], 8: [7, 9], 9: [8, 10], 10: [9, 11],
+        11: [10, 12], 12: [11, 10],
+    }
+
+    alts: list[dict[str, Any]] = []
+    for i in range(n):
+        # Perturbation: rotate one pigment slot to a neighbour pigment_id
+        slot = i % M_parent
+        new_pigment = parent_pigment.copy()
+        candidates = pigment_neighbours.get(int(parent_pigment[slot]), [])
+        if candidates:
+            new_pigment[slot] = int(rng.choice(candidates))
+
+        # Warm-start = parent's alpha + small noise on the perturbed slot
+        warm = parent_alpha.copy().astype(np.float32)
+        noise = rng.normal(0, 0.05, size=warm[slot].shape).astype(np.float32)
+        warm[slot] = np.clip(warm[slot] + noise, 0.0, 1.0)
+
+        try:
+            solve_result = s5_solver.run_s5_solver(
+                target_rgb=target,
+                pigment_idx=new_pigment,
+                alpha_init=warm,
+                solve_profile="fast",
+            )
+        except Exception as exc:
+            alts.append({"alt_idx": i, "status": "FAILED", "error": str(exc)[:200]})
+            continue
+
+        # Compute real ΔE
+        alpha_hwm = np.transpose(solve_result.alpha_stack, (1, 2, 0))
+        rendered = np.asarray(_fr.forward_render(
+            jnp.asarray(alpha_hwm, dtype=jnp.float32),
+            jnp.asarray(new_pigment, dtype=jnp.int32),
+        ))
+        de_summary = _color.delta_e_summary(rendered, target)
+
+        # Persist as new plan
+        new_plan_id = _new_plan_id(plan_id) + f"_alt{i}"
+        new_dir = _orch._plan_dir(plan.session_id, new_plan_id)
+        np.save(new_dir / "alpha_stack.npy", solve_result.alpha_stack)
+        np.save(new_dir / "pigment_idx.npy", new_pigment)
+        (new_dir / "target.npy").write_bytes(target_path.read_bytes())
+
+        new_plan = replace(
+            plan,
+            plan_id=new_plan_id,
+            impressions=solve_result.impressions,
+            alpha_stack_path=str(new_dir / "alpha_stack.npy"),
+            pigment_idx=list(int(p) for p in new_pigment),
+            reconstruction_dE_mean=round(de_summary["dE_mean"], 3),
+            reconstruction_dE_p95=round(de_summary["dE_p95"], 3),
+            solver_wall_s=float(solve_result.wall_s),
+            solver_status="OK",
+            created_at=_orch._now_iso(),
+        )
+        (new_dir / "plan.json").write_text(json.dumps(asdict(new_plan), indent=2, sort_keys=True))
+
+        alts.append({
+            "alt_idx": i,
+            "plan_id": new_plan_id,
+            "perturbed_slot": slot,
+            "swapped_pigment_id": int(new_pigment[slot]),
+            "dE_mean": new_plan.reconstruction_dE_mean,
+            "dE_p95": new_plan.reconstruction_dE_p95,
+            "solver_wall_s": new_plan.solver_wall_s,
+            "status": "OK",
+        })
+
+    # Rank by dE_mean ascending (best first)
+    ok_alts = [a for a in alts if a.get("status") == "OK"]
+    ok_alts.sort(key=lambda a: a["dE_mean"])
+    for rank, alt in enumerate(ok_alts):
+        alt["rank"] = rank
+    alternatives = ok_alts + [a for a in alts if a.get("status") != "OK"]
+
+    return ToolResult(ok=True, data={
+        "plan_id": plan_id,
+        "alternatives": alternatives,
+        "n_requested": n,
+        "n_succeeded": len(ok_alts),
+        "parent_dE_mean": plan.reconstruction_dE_mean,
+    })
 
 
 def generate_stack_candidates(plan_id: str, n: int = 3) -> ToolResult[dict[str, Any]]:

@@ -30,11 +30,11 @@ def test_pin_region_rejects_unknown_action() -> None:
     assert any(e.code == "INVALID_PIN_ACTION" for e in r.errors)
 
 
-def test_alternative_stacks_returns_n_alternatives() -> None:
+def test_alternative_stacks_unknown_plan_refuses(tmp_path: Path, monkeypatch) -> None:
+    _isolate(monkeypatch, tmp_path)
     from backend.mcp.tools import hitl
     r = hitl.alternative_stacks("plan_a", n=3)
-    assert r.ok is True
-    assert len(r.data["alternatives"]) == 3
+    assert r.ok is False  # plan unknown -> refusal
 
 
 def test_alternative_stacks_rejects_invalid_n() -> None:
@@ -45,11 +45,14 @@ def test_alternative_stacks_rejects_invalid_n() -> None:
     assert r2.ok is False
 
 
-def test_generate_stack_candidates_is_alias() -> None:
+def test_generate_stack_candidates_is_alias(tmp_path: Path, monkeypatch) -> None:
+    """Both must take the same path through alternative_stacks — same refusal."""
+    _isolate(monkeypatch, tmp_path)
     from backend.mcp.tools import hitl
     a = hitl.alternative_stacks("p", n=2)
     b = hitl.generate_stack_candidates("p", n=2)
-    assert set(a.data.keys()) == set(b.data.keys())
+    assert a.ok is b.ok
+    assert [e.code for e in a.errors] == [e.code for e in b.errors]
 
 
 def test_compare_plans_unknown_refuses(tmp_path: Path, monkeypatch) -> None:
