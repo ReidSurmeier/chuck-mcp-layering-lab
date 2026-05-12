@@ -97,18 +97,18 @@ def test_build_hue_family_map_returns_per_family_areas(tmp_path: Path, monkeypat
     assert abs(total - 1.0) < 0.05  # areas should sum to ≈ 1
 
 
-def test_propose_stack_returns_impl_pending_until_solver_lands(tmp_path: Path, monkeypatch) -> None:
-    """D10+ adds the real solver; until then propose_stack returns degraded."""
+def test_propose_stack_is_real_solver_post_d14h(tmp_path: Path, monkeypatch) -> None:
+    """Post-D14.h: solver IS real. No IMPL_PENDING_SOLVER banner expected."""
     _isolate(monkeypatch, tmp_path)
     from backend.mcp.tools import core
 
     res = core.propose_stack(str(_png_path(tmp_path)), solve_profile="default")
-    assert res.ok is True  # mock-mode still returns usable plan_id
+    assert res.ok is True
     assert res.data is not None
     assert res.data["plan_id"]
-    # Must surface an IMPL_PENDING-class warning so Opus knows the solver isn't real yet
+    # Solver is real now — no stale impl-pending banner
     codes = {e.code for e in res.errors}
-    assert "IMPL_PENDING_SOLVER" in codes or "MOCK_MODE" in codes
+    assert "IMPL_PENDING_SOLVER" not in codes
 
 
 def test_propose_stack_rejects_invalid_solve_profile(tmp_path: Path, monkeypatch) -> None:

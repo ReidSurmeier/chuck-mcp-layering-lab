@@ -36,6 +36,90 @@ def _impl_pending(code: str, hint: str) -> WoodblockError:
     )
 
 
+def _render_de_heatmap(plan: "_orch.PartialPlan", plan_dir: Path) -> Path | None:
+    """Per-pixel ΔE76 heatmap PNG (viridis-style ramp). Saves under plan_dir."""
+    if (plan.alpha_stack_path is None or not Path(plan.alpha_stack_path).is_file()):
+        return None
+    target_path = Path(plan.alpha_stack_path).parent / "target.npy"
+    if not target_path.is_file():
+        return None
+
+    import jax.numpy as jnp
+    import numpy as np
+    from PIL import Image
+    from backend.services.v23.core import color, forward_render_jax
+
+    alpha_stack = np.load(plan.alpha_stack_path)  # (M, H, W)
+    target = np.load(target_path)
+    alpha_hwm = np.transpose(alpha_stack, (1, 2, 0))
+    rendered = np.asarray(forward_render_jax.forward_render(
+        jnp.asarray(alpha_hwm, dtype=jnp.float32),
+        jnp.asarray(plan.pigment_idx, dtype=jnp.int32),
+    ))
+    dE = color.rgb_delta_e76(rendered, target)  # (H, W) in ΔE76 units
+    # Normalise to [0, 1] with a 0..15 ΔE range (anything > 15 saturates red)
+    norm = np.clip(dE / 15.0, 0.0, 1.0)
+    # Simple blue→cyan→yellow→red ramp
+    r = np.clip(2 * norm - 0.5, 0.0, 1.0)
+    g = np.clip(1.0 - 2.0 * np.abs(norm - 0.5), 0.0, 1.0)
+    b = np.clip(1.0 - 2.0 * norm, 0.0, 1.0)
+    heat = (np.stack([r, g, b], axis=-1) * 255.0).astype(np.uint8)
+    out = plan_dir / "heatmap.png"
+    Image.fromarray(heat, "RGB").save(out)
+    return out
+
+
+def _render_quad_grid(plan: "_orch.PartialPlan", plan_dir: Path) -> Path | None:
+    """4-up grid: target | composite | dE-heatmap | confidence(state colour-map)."""
+    if plan.alpha_stack_path is None or not Path(plan.alpha_stack_path).is_file():
+        return None
+    target_path = Path(plan.alpha_stack_path).parent / "target.npy"
+    if not target_path.is_file():
+        return None
+
+    import jax.numpy as jnp
+    import numpy as np
+    from PIL import Image
+    from backend.services.v23.core import color, forward_render_jax
+    from backend.services.v23.stages import s10_emit
+
+    target = np.load(target_path)
+    composite = np.asarray(s10_emit._render_composite(plan))
+    # Decode composite PNG bytes back to array via PIL
+    import io
+    target_u8 = (np.clip(target, 0.0, 1.0) * 255.0).astype(np.uint8)
+    composite_img = Image.open(io.BytesIO(composite)).convert("RGB")
+    composite_u8 = np.array(composite_img, dtype=np.uint8)
+
+    # Heatmap (reuses _render_de_heatmap logic inline)
+    alpha_stack = np.load(plan.alpha_stack_path)
+    alpha_hwm = np.transpose(alpha_stack, (1, 2, 0))
+    rendered = np.asarray(forward_render_jax.forward_render(
+        jnp.asarray(alpha_hwm, dtype=jnp.float32),
+        jnp.asarray(plan.pigment_idx, dtype=jnp.int32),
+    ))
+    dE = color.rgb_delta_e76(rendered, target)
+    norm = np.clip(dE / 15.0, 0.0, 1.0)
+    r = np.clip(2 * norm - 0.5, 0.0, 1.0)
+    g = np.clip(1.0 - 2.0 * np.abs(norm - 0.5), 0.0, 1.0)
+    b = np.clip(1.0 - 2.0 * norm, 0.0, 1.0)
+    heat_u8 = (np.stack([r, g, b], axis=-1) * 255.0).astype(np.uint8)
+
+    # Confidence map: max alpha per pixel → grayscale
+    max_alpha = alpha_stack.max(axis=0)
+    confidence_u8 = np.tile((max_alpha * 255.0).astype(np.uint8)[..., None], (1, 1, 3))
+
+    h, w = target.shape[:2]
+    grid = np.zeros((h * 2, w * 2, 3), dtype=np.uint8)
+    grid[:h, :w] = target_u8
+    grid[:h, w:] = composite_u8
+    grid[h:, :w] = heat_u8
+    grid[h:, w:] = confidence_u8
+    out = plan_dir / "quad_grid.png"
+    Image.fromarray(grid, "RGB").save(out)
+    return out
+
+
 # ---------------------------------------------------------------------------
 # T0.1 — ingest_reference_image (REAL: wraps s1_ingest.ingest_reference_image)
 # ---------------------------------------------------------------------------
@@ -185,12 +269,6 @@ def propose_stack(
             "solver_wall_s": plan.solver_wall_s,
             "solver_status": plan.solver_status,
         },
-        errors=[
-            _impl_pending(
-                "IMPL_PENDING_SOLVER",
-                "S1→S2→S3 + template suggestion are real; S4-S10 (Tan warm-start + JAX inverse solver + three-state mask + DSATUR + SVG + ZIP) land incrementally in D10+ ticks",
-            )
-        ],
     )
 
 
@@ -269,27 +347,25 @@ def inspect_plan(
             },
         )
     if focus == "heatmap":
+        heatmap_path = _render_de_heatmap(plan, plan_dir)
         return ToolResult(
             ok=True,
             data={
                 "plan_id": plan_id, "focus": focus,
                 "dE_mean": plan.reconstruction_dE_mean,
                 "dE_p95": plan.reconstruction_dE_p95,
-                "artifact_path": None,
+                "artifact_path": str(heatmap_path) if heatmap_path else None,
+                "metric": "deltaE76",
             },
-            errors=[_impl_pending(
-                "IMPL_PENDING_HEATMAP",
-                "per-pixel ΔE heatmap PNG lands at D12.c — manifest scalars returned",
-            )],
         )
     if focus == "quad":
+        quad_path = _render_quad_grid(plan, plan_dir)
         return ToolResult(
             ok=True,
-            data={"plan_id": plan_id, "focus": focus, "artifact_path": None},
-            errors=[_impl_pending(
-                "IMPL_PENDING_QUAD",
-                "4-up grid (orig|composite|dE|masks) lands at D12.c",
-            )],
+            data={
+                "plan_id": plan_id, "focus": focus,
+                "artifact_path": str(quad_path) if quad_path else None,
+            },
         )
     # pixel — would need (x, y) args; use dE_at + pigment_at instead
     return ToolResult(
