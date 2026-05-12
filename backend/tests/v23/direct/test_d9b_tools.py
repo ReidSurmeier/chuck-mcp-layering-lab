@@ -98,20 +98,32 @@ def test_capture_swatch_rejects_missing_file(tmp_path: Path, monkeypatch) -> Non
     assert any(e.code == "SWATCH_FILE_MISSING" for e in r.errors)
 
 
-def test_capture_swatch_with_real_file(tmp_path: Path, monkeypatch) -> None:
+def test_capture_swatch_invalid_layout_refuses(tmp_path: Path, monkeypatch) -> None:
+    """Mock-shape layout {rows, cols} alone is invalid post-D14.l (needs origin + cell_px)."""
     _isolate(monkeypatch, tmp_path)
-    f = tmp_path / "swatch.jpg"
-    f.write_bytes(b"\xff\xd8stub")
+    import numpy as np
+    from PIL import Image as _Image
+    f = tmp_path / "swatch.png"
+    _Image.fromarray(np.zeros((40, 40, 3), dtype=np.uint8), "RGB").save(f)
     from backend.mcp.tools import calibration
     r = calibration.capture_swatch(str(f), {"rows": 5, "cols": 13}, {"variant": "passport"})
-    assert r.ok is True
-    assert r.data["candidate_id"].startswith("cal_candidate_")
+    assert r.ok is False
+    assert any(e.code == "INVALID_LAYOUT" for e in r.errors)
 
 
-def test_apply_calibration_writes_active_pointer(tmp_path: Path, monkeypatch) -> None:
+def test_apply_calibration_unknown_refuses(tmp_path: Path, monkeypatch) -> None:
+    """Post-D14.l: apply_calibration validates the id exists (not generic_mixbox_13)."""
     _isolate(monkeypatch, tmp_path)
     from backend.mcp.tools import calibration
     r = calibration.apply_calibration("cal_fitted_test")
+    assert r.ok is False
+    assert any(e.code == "CALIBRATION_NOT_FOUND" for e in r.errors)
+
+
+def test_apply_calibration_builtin_passthrough(tmp_path: Path, monkeypatch) -> None:
+    _isolate(monkeypatch, tmp_path)
+    from backend.mcp.tools import calibration
+    r = calibration.apply_calibration("generic_mixbox_13")
     assert r.ok is True
     assert r.data["applied"] is True
 
