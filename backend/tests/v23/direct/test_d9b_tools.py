@@ -237,25 +237,28 @@ def test_list_sessions_rejects_huge_limit(tmp_path: Path, monkeypatch) -> None:
 
 # Tier 5 — Carve handoff (3 tools)
 
-def test_export_svg_returns_paths_list() -> None:
+def test_export_svg_unknown_plan_refuses(tmp_path: Path, monkeypatch) -> None:
+    _isolate(monkeypatch, tmp_path)
     from backend.mcp.tools import carve
     r = carve.export_svg("plan_x")
-    assert r.ok is True
-    assert "svg_paths" in r.data
+    assert r.ok is False
+    assert r.errors[0].code in ("PLAN_NOT_FOUND", "NO_ACTIVE_SESSION")
 
 
-def test_export_block_svgs_returns_kento_marks() -> None:
+def test_export_block_svgs_unknown_plan_refuses(tmp_path: Path, monkeypatch) -> None:
+    _isolate(monkeypatch, tmp_path)
     from backend.mcp.tools import carve
     r = carve.export_block_svgs("plan_x")
-    assert r.ok is True
-    assert "kento_marks" in r.data
+    assert r.ok is False
+    assert r.errors[0].code in ("PLAN_NOT_FOUND", "NO_ACTIVE_SESSION")
 
 
-def test_generate_carve_order_returns_hour_estimate() -> None:
+def test_generate_carve_order_unknown_plan_refuses(tmp_path: Path, monkeypatch) -> None:
+    _isolate(monkeypatch, tmp_path)
     from backend.mcp.tools import carve
     r = carve.generate_carve_order("plan_x")
-    assert r.ok is True
-    assert "estimated_hours" in r.data
+    assert r.ok is False
+    assert r.errors[0].code in ("PLAN_NOT_FOUND", "NO_ACTIVE_SESSION")
 
 
 # Tier 6 — Overlay (4 tools)
@@ -304,7 +307,7 @@ def test_compare_render_tiers_returns_dE_deltas() -> None:
 def test_tier_modules_export_expected_tool_counts() -> None:
     from backend.mcp.tools import calibration, carve, hitl, introspection, overlay, session
     expected = {
-        hitl: 10,           # 8 listed + 2 aliases (generate_stack_candidates + compare_alternate_recipes)
+        hitl: 10,           # 8 listed + 2 aliases
         calibration: 5,
         introspection: 6,
         session: 4,
@@ -312,4 +315,6 @@ def test_tier_modules_export_expected_tool_counts() -> None:
         overlay: 4,
     }
     for mod, count in expected.items():
-        assert len(mod.__all__) == count, f"{mod.__name__} __all__ len {len(mod.__all__)} != {count}"
+        assert len(mod.__all__) == count, (
+            f"{mod.__name__} __all__ len {len(mod.__all__)} != {count}"
+        )
