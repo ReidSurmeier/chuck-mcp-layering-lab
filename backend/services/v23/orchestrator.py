@@ -29,6 +29,8 @@ from backend.services.v23.stages import (
     s3_hue_family,
     s4_warmstart,
     s5_solver,
+    s6_three_state_mask,
+    s7_block_pack,
 )
 
 _VALID_SOLVE_PROFILES = ("fast", "default", "thorough")
@@ -58,6 +60,12 @@ class PartialPlan:
     reconstruction_dE_mean: float | None = None
     reconstruction_dE_p95: float | None = None
     solver_wall_s: float = 0.0
+    state_summary: list[dict[str, Any]] = field(default_factory=list)
+    block_count: int = 0
+    impression_to_block: dict[str, int] = field(default_factory=dict)
+    impression_to_face: dict[str, str] = field(default_factory=dict)
+    pull_groups: list[dict[str, Any]] = field(default_factory=list)
+    state_stack_path: str | None = None
     created_at: str = ""
 
 
@@ -143,28 +151,53 @@ def run_pipeline_partial(
     reconstruction_dE_mean: float | None = None
     reconstruction_dE_p95: float | None = None
     solver_wall_s = 0.0
+    state_summary: list[dict[str, Any]] = []
+    block_count = 0
+    impression_to_block: dict[str, int] = {}
+    impression_to_face: dict[str, str] = {}
+    pull_groups: list[dict[str, Any]] = []
+    state_stack_path: str | None = None
     if os.environ.get("WOODBLOCK_DISABLE_SOLVER") != "1":
         try:
+            import numpy as _np
+
             warm = s4_warmstart.tan_to_pigment_warmstart(
                 handle.array, target_palette_size=8
             )
             target = handle.array.astype("float32") / 255.0
-            result = s5_solver.run_s5_solver(
+            solve_result = s5_solver.run_s5_solver(
                 target_rgb=target,
-                pigment_idx=__import__("numpy").asarray(warm.pigment_idx, dtype="int32"),
+                pigment_idx=_np.asarray(warm.pigment_idx, dtype="int32"),
                 alpha_init=warm.alpha_stack,
                 solve_profile=solve_profile,
             )
-            impressions = result.impressions
+            impressions = solve_result.impressions
             solver_status = "OK"
-            solver_wall_s = result.wall_s
-            # Rough RGB-L2 → ΔE proxy: final_loss is sum-squared over (H*W*3).
-            # Per-pixel MSE -> sqrt -> heuristic ΔE in RGB scale [0..255].
+            solver_wall_s = solve_result.wall_s
+
+            # Rough RGB-L2 → ΔE proxy until Oklab ΔE2000 lands at D10.e.
             n = handle.width * handle.height * 3
-            mse = result.final_loss / max(n, 1)
+            mse = solve_result.final_loss / max(n, 1)
             rms = float(mse ** 0.5)
-            reconstruction_dE_mean = round(rms * 255.0 * 0.1, 3)  # crude scale
+            reconstruction_dE_mean = round(rms * 255.0 * 0.1, 3)
             reconstruction_dE_p95 = round(rms * 255.0 * 0.2, 3)
+
+            # S6 — three-state mask classification post-solve
+            state_stack = s6_three_state_mask.classify_three_state(solve_result.alpha_stack)
+            state_summary = s6_three_state_mask.summarise_states(state_stack)
+
+            # Persist state_stack as .npy under the plan dir for downstream tools
+            plan_id_preview = f"plan_{int(time.time() * 1000)}_{handle.image_sha256[:8]}"
+            state_path = _plan_dir(handle.session_id, plan_id_preview) / "state_stack.npy"
+            _np.save(state_path, state_stack)
+            state_stack_path = str(state_path)
+
+            # S7 — DSATUR-style block packing post-solve
+            pack = s7_block_pack.pack_blocks(solve_result.alpha_stack)
+            block_count = pack.block_count
+            impression_to_block = pack.impression_to_block
+            impression_to_face = pack.impression_to_face
+            pull_groups = pack.pull_groups
         except Exception:
             solver_status = "FAILED"
 
@@ -189,6 +222,12 @@ def run_pipeline_partial(
         reconstruction_dE_mean=reconstruction_dE_mean,
         reconstruction_dE_p95=reconstruction_dE_p95,
         solver_wall_s=solver_wall_s,
+        state_summary=state_summary,
+        block_count=block_count,
+        impression_to_block=impression_to_block,
+        impression_to_face=impression_to_face,
+        pull_groups=pull_groups,
+        state_stack_path=state_stack_path,
         created_at=_now_iso(),
     )
     _persist_plan(plan)

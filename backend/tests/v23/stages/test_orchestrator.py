@@ -94,7 +94,7 @@ def test_partial_pipeline_returns_plan_with_real_artifacts(tmp_path: Path, monke
 
 
 def test_partial_pipeline_with_solver_returns_real_impressions(tmp_path: Path, monkeypatch) -> None:
-    """When WOODBLOCK_DISABLE_SOLVER unset, S4+S5 run + populate impressions."""
+    """When WOODBLOCK_DISABLE_SOLVER unset, S4+S5+S6+S7 run + populate plan."""
     _isolate(monkeypatch, tmp_path)
     _mock_sam(monkeypatch)
     monkeypatch.delenv("WOODBLOCK_DISABLE_SOLVER", raising=False)
@@ -105,11 +105,19 @@ def test_partial_pipeline_with_solver_returns_real_impressions(tmp_path: Path, m
     assert len(result.impressions) >= 1
     assert result.reconstruction_dE_mean is not None
     assert result.solver_wall_s > 0.0
-    # Each impression has the right shape
     for imp in result.impressions:
         assert "order_step" in imp
         assert "pigment_id" in imp
         assert "coverage_pct" in imp
+    # S6 + S7 wired
+    assert len(result.state_summary) == len(result.impressions)
+    for s in result.state_summary:
+        assert "visible_pct" in s
+    assert result.block_count >= 1
+    assert len(result.impression_to_block) == len(result.impressions)
+    assert all("::face_" in v for v in result.impression_to_face.values())
+    assert result.state_stack_path is not None
+    assert Path(result.state_stack_path).is_file()
 
 
 def test_partial_pipeline_persists_plan_json(tmp_path: Path, monkeypatch) -> None:
