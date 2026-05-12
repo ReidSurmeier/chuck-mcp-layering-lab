@@ -26,6 +26,12 @@ def disable_sam_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("WOODBLOCK_DISABLE_SAM", "1")
 
 
+@pytest.fixture(autouse=True)
+def disable_solver_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Skip S4+S5 by default. Solver-exercising tests delenv to opt in."""
+    monkeypatch.setenv("WOODBLOCK_DISABLE_SOLVER", "1")
+
+
 @pytest.fixture(scope="session")
 def repo_root() -> Path:
     return REPO_ROOT

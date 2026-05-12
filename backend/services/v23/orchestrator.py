@@ -23,7 +23,13 @@ from typing import Any, Literal
 from backend.mcp.errors import WoodblockError
 from backend.services.v23 import session as _sess
 from backend.services.v23.core import templates as _templates
-from backend.services.v23.stages import s1_ingest, s2_sam, s3_hue_family
+from backend.services.v23.stages import (
+    s1_ingest,
+    s2_sam,
+    s3_hue_family,
+    s4_warmstart,
+    s5_solver,
+)
 
 _VALID_SOLVE_PROFILES = ("fast", "default", "thorough")
 _SCHEMA_VERSION = "v23.0"
@@ -130,6 +136,38 @@ def run_pipeline_partial(
     # Template suggestion (measurable hints only — Opus picks)
     suggestion = _templates.suggest_template(family_areas=s3.family_areas)
 
+    # S4 + S5 — Tan warm-start + JAX L-BFGS inverse solver.
+    # ``WOODBLOCK_DISABLE_SOLVER=1`` env bypasses S4+S5 (test ring default).
+    impressions: list[dict[str, Any]] = []
+    solver_status = "IMPL_PENDING"
+    reconstruction_dE_mean: float | None = None
+    reconstruction_dE_p95: float | None = None
+    solver_wall_s = 0.0
+    if os.environ.get("WOODBLOCK_DISABLE_SOLVER") != "1":
+        try:
+            warm = s4_warmstart.tan_to_pigment_warmstart(
+                handle.array, target_palette_size=8
+            )
+            target = handle.array.astype("float32") / 255.0
+            result = s5_solver.run_s5_solver(
+                target_rgb=target,
+                pigment_idx=__import__("numpy").asarray(warm.pigment_idx, dtype="int32"),
+                alpha_init=warm.alpha_stack,
+                solve_profile=solve_profile,
+            )
+            impressions = result.impressions
+            solver_status = "OK"
+            solver_wall_s = result.wall_s
+            # Rough RGB-L2 → ΔE proxy: final_loss is sum-squared over (H*W*3).
+            # Per-pixel MSE -> sqrt -> heuristic ΔE in RGB scale [0..255].
+            n = handle.width * handle.height * 3
+            mse = result.final_loss / max(n, 1)
+            rms = float(mse ** 0.5)
+            reconstruction_dE_mean = round(rms * 255.0 * 0.1, 3)  # crude scale
+            reconstruction_dE_p95 = round(rms * 255.0 * 0.2, 3)
+        except Exception:
+            solver_status = "FAILED"
+
     plan_id = f"plan_{int(time.time() * 1000)}_{handle.image_sha256[:8]}"
     plan = PartialPlan(
         plan_id=plan_id,
@@ -146,7 +184,11 @@ def run_pipeline_partial(
         suggested_template=strategy_template or suggestion.template_id,
         template_confidence=suggestion.confidence,
         template_reason=suggestion.reason,
-        solver_status="IMPL_PENDING",
+        solver_status=solver_status,
+        impressions=impressions,
+        reconstruction_dE_mean=reconstruction_dE_mean,
+        reconstruction_dE_p95=reconstruction_dE_p95,
+        solver_wall_s=solver_wall_s,
         created_at=_now_iso(),
     )
     _persist_plan(plan)

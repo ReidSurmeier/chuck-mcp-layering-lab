@@ -75,6 +75,8 @@ def _mock_sam(monkeypatch) -> None:
 def test_partial_pipeline_returns_plan_with_real_artifacts(tmp_path: Path, monkeypatch) -> None:
     _isolate(monkeypatch, tmp_path)
     _mock_sam(monkeypatch)
+    # Disable solver so the test stays fast and asserts S1-S3 artifacts only.
+    monkeypatch.setenv("WOODBLOCK_DISABLE_SOLVER", "1")
     from backend.services.v23.orchestrator import run_pipeline_partial
 
     result = run_pipeline_partial(str(_png_path(tmp_path)), solve_profile="default")
@@ -86,8 +88,28 @@ def test_partial_pipeline_returns_plan_with_real_artifacts(tmp_path: Path, monke
     assert Path(result.hue_family_map_path).is_file()
     # SAM regions parsed
     assert len(result.sam_regions) >= 1
-    # S4-S10 mock fields populated as None / 0
+    # S5 disabled by env → status reflects skip
     assert result.solver_status == "IMPL_PENDING"
+    assert result.impressions == []
+
+
+def test_partial_pipeline_with_solver_returns_real_impressions(tmp_path: Path, monkeypatch) -> None:
+    """When WOODBLOCK_DISABLE_SOLVER unset, S4+S5 run + populate impressions."""
+    _isolate(monkeypatch, tmp_path)
+    _mock_sam(monkeypatch)
+    monkeypatch.delenv("WOODBLOCK_DISABLE_SOLVER", raising=False)
+    from backend.services.v23.orchestrator import run_pipeline_partial
+
+    result = run_pipeline_partial(str(_png_path(tmp_path)), solve_profile="fast")
+    assert result.solver_status == "OK"
+    assert len(result.impressions) >= 1
+    assert result.reconstruction_dE_mean is not None
+    assert result.solver_wall_s > 0.0
+    # Each impression has the right shape
+    for imp in result.impressions:
+        assert "order_step" in imp
+        assert "pigment_id" in imp
+        assert "coverage_pct" in imp
 
 
 def test_partial_pipeline_persists_plan_json(tmp_path: Path, monkeypatch) -> None:
