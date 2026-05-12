@@ -30,6 +30,147 @@ def _bbox_from_region(region: dict) -> tuple[int, int, int, int] | None:
     return tuple(int(v) for v in bbox)  # type: ignore[return-value]
 
 
+def _split_by_hue_subcluster(plan_id: str, impression_id: str) -> "ToolResult[dict[str, Any]]":
+    """K-means split (K=2) on target RGB at pixels where this impression is active."""
+    import json
+    from dataclasses import asdict, replace
+    from pathlib import Path
+
+    import numpy as np
+    from scipy.cluster.vq import kmeans2
+
+    from backend.services.v23 import orchestrator as _orch
+
+    try:
+        plan = _orch.load_plan(plan_id)
+    except _orch.OrchestratorError as exc:
+        return ToolResult(ok=False, data=None, errors=[exc.error])
+
+    id_to_idx = {imp["id"]: i for i, imp in enumerate(plan.impressions)}
+    if impression_id not in id_to_idx:
+        return ToolResult(ok=False, data=None, errors=[
+            WoodblockError(tier="refusal", code="UNKNOWN_IMPRESSION_ID",
+                           message=f"impression_id {impression_id!r} not in plan {plan_id}",
+                           recoverable=True),
+        ])
+    if plan.alpha_stack_path is None or not Path(plan.alpha_stack_path).is_file():
+        return ToolResult(ok=False, data=None, errors=[
+            WoodblockError(tier="refusal", code="NO_SOLVER_OUTPUT",
+                           message="plan has no alpha_stack to split against",
+                           recoverable=True),
+        ])
+    target_path = Path(plan.alpha_stack_path).parent / "target.npy"
+    if not target_path.is_file():
+        return ToolResult(ok=False, data=None, errors=[
+            WoodblockError(tier="refusal", code="NO_TARGET_CACHE",
+                           message="plan has no persisted target.npy for hue clustering",
+                           recoverable=True),
+        ])
+
+    target_idx = id_to_idx[impression_id]
+    alpha_stack = np.load(plan.alpha_stack_path)
+    pigment_idx = np.asarray(plan.pigment_idx, dtype=np.int32)
+    target = np.load(target_path)  # (H, W, 3) in [0, 1]
+    target_alpha = alpha_stack[target_idx]
+    mask = target_alpha > 0.05
+    sample_pixels = target[mask]  # (N, 3)
+    if sample_pixels.shape[0] < 4:
+        return ToolResult(ok=False, data=None, errors=[
+            WoodblockError(tier="refusal", code="EMPTY_IMPRESSION",
+                           message="impression has <4 active pixels — cannot cluster",
+                           recoverable=True),
+        ])
+
+    # K=2 k-means on RGB
+    try:
+        centroids, labels_flat = kmeans2(
+            sample_pixels.astype(np.float64), k=2, minit="++", seed=42,
+        )
+    except Exception as exc:
+        return ToolResult(ok=False, data=None, errors=[
+            WoodblockError(tier="refusal", code="CLUSTER_FAILED",
+                           message=f"k-means failed: {exc}", recoverable=True),
+        ])
+
+    # Build per-cluster alpha planes
+    label_map = np.full(target_alpha.shape, -1, dtype=np.int8)
+    label_map[mask] = labels_flat
+    children: list[np.ndarray] = []
+    for k in (0, 1):
+        child_alpha = np.where(label_map == k, target_alpha, 0.0).astype(np.float32)
+        if child_alpha.max() > 0.05:
+            children.append(child_alpha)
+    if len(children) < 2:
+        return ToolResult(ok=True, data={
+            "plan_id": plan_id, "new_plan_id": plan_id,
+            "split_impression": impression_id, "by": "hue_subcluster",
+            "child_count": 1,
+            "note": "k-means converged to single populated cluster — no split performed",
+        })
+
+    # Insert children at target_idx
+    before = alpha_stack[:target_idx]
+    after = alpha_stack[target_idx + 1:]
+    new_alpha = np.concatenate([before, np.stack(children, axis=0), after], axis=0)
+
+    parent_pid = int(pigment_idx[target_idx])
+    new_pigment = np.concatenate([
+        pigment_idx[:target_idx],
+        np.full(len(children), parent_pid, dtype=np.int32),
+        pigment_idx[target_idx + 1:],
+    ])
+
+    new_plan_id = _new_plan_id(plan_id)
+    new_plan_dir = _orch._plan_dir(plan.session_id, new_plan_id)
+    np.save(new_plan_dir / "alpha_stack.npy", new_alpha)
+    np.save(new_plan_dir / "pigment_idx.npy", new_pigment)
+    (new_plan_dir / "target.npy").write_bytes(target_path.read_bytes())
+    if plan.state_stack_path and Path(plan.state_stack_path).is_file():
+        (new_plan_dir / "state_stack.npy").write_bytes(Path(plan.state_stack_path).read_bytes())
+
+    parent_imp = plan.impressions[target_idx]
+    new_impressions = list(plan.impressions[:target_idx])
+    for k, child_alpha in enumerate(children):
+        cimp = dict(parent_imp)
+        cimp["id"] = f"{parent_imp.get('id', 'imp')}_hue_{k}"
+        cimp["mean_alpha"] = float(child_alpha.mean())
+        cimp["coverage_pct"] = float((child_alpha > 0.05).mean() * 100.0)
+        cimp["cluster_centroid_rgb"] = [
+            round(float(c), 4) for c in centroids[k]
+        ]
+        new_impressions.append(cimp)
+    new_impressions.extend(plan.impressions[target_idx + 1:])
+    for i, imp in enumerate(new_impressions):
+        imp["order_step"] = i
+
+    new_plan = replace(
+        plan,
+        plan_id=new_plan_id,
+        impressions=new_impressions,
+        alpha_stack_path=str(new_plan_dir / "alpha_stack.npy"),
+        state_stack_path=(
+            str(new_plan_dir / "state_stack.npy")
+            if (new_plan_dir / "state_stack.npy").is_file() else plan.state_stack_path
+        ),
+        pigment_idx=list(int(p) for p in new_pigment),
+        created_at=_orch._now_iso(),
+    )
+    (new_plan_dir / "plan.json").write_text(
+        json.dumps(asdict(new_plan), indent=2, sort_keys=True)
+    )
+
+    return ToolResult(ok=True, data={
+        "plan_id": plan_id,
+        "new_plan_id": new_plan_id,
+        "split_impression": impression_id,
+        "by": "hue_subcluster",
+        "child_count": len(children),
+        "cluster_centroids_rgb": [
+            [round(float(c), 4) for c in centroids[k]] for k in range(len(children))
+        ],
+    })
+
+
 def _impl_pending(code: str, hint: str) -> WoodblockError:
     return WoodblockError(
         tier="degraded", code=code,
@@ -567,15 +708,7 @@ def split_impression(
                            recoverable=True),
         ])
     if by == "hue_subcluster":
-        return ToolResult(
-            ok=True,
-            data={"plan_id": plan_id, "new_plan_id": _new_plan_id(plan_id),
-                  "split_impression": impression_id, "by": by, "child_count": 1},
-            errors=[_impl_pending(
-                "IMPL_PENDING_HUE_SUBCLUSTER",
-                "hue subcluster split wires at D14.e (target-rgb k-means)",
-            )],
-        )
+        return _split_by_hue_subcluster(plan_id, impression_id)
 
     import json
     from dataclasses import asdict, replace

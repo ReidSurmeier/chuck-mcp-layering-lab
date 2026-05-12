@@ -186,6 +186,23 @@ def test_split_impression_by_mask_island_real(two_plans) -> None:
     assert len(split.impressions) >= len(p1.impressions)
 
 
+def test_split_by_hue_subcluster_real(two_plans) -> None:
+    p1, _ = two_plans
+    if not p1.impressions:
+        pytest.skip("solver produced 0 impressions on this seed")
+    target_id = p1.impressions[0]["id"]
+    from backend.mcp.tools import hitl
+    r = hitl.split_impression(p1.plan_id, target_id, by="hue_subcluster")
+    assert r.ok is True, r.errors
+    # Should either split successfully or note single-cluster degenerate
+    if r.data["child_count"] >= 2:
+        assert r.data["new_plan_id"] != p1.plan_id
+        assert len(r.data["cluster_centroids_rgb"]) >= 2
+        from backend.services.v23 import orchestrator as _orch
+        new = _orch.load_plan(r.data["new_plan_id"])
+        assert len(new.impressions) >= len(p1.impressions)
+
+
 def test_split_impression_unknown_id_refuses(two_plans) -> None:
     p1, _ = two_plans
     from backend.mcp.tools import hitl
