@@ -197,9 +197,11 @@ def run_pipeline_partial(
             state_path = pdir / "state_stack.npy"
             alpha_path = pdir / "alpha_stack.npy"
             pigment_path = pdir / "pigment_idx.npy"
+            target_path = pdir / "target.npy"
             _np.save(state_path, state_stack)
             _np.save(alpha_path, solve_result.alpha_stack)
             _np.save(pigment_path, _np.asarray(solve_result.pigment_idx, dtype="int32"))
+            _np.save(target_path, target)
             state_stack_path = str(state_path)
             alpha_stack_path = str(alpha_path)
             pigment_idx_list = list(solve_result.pigment_idx)

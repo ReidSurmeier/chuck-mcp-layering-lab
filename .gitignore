@@ -72,9 +72,10 @@ test_large.png
 .gitnexus
 .venv-v23/
 
-# ruflo / claude-flow scratch state (NOT CLAUDE.md or .claude/ — those are
-# user-managed config that may or may not want to be committed)
+# ruflo / claude-flow scratch state
 .claude-flow/
+.claude/
+CLAUDE.md
 .swarm/
 agentdb.rvf
 agentdb.rvf.lock

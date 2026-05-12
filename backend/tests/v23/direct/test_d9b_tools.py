@@ -165,11 +165,20 @@ def test_dE_at_rejects_negative_coords() -> None:
     assert r.ok is False
 
 
-def test_pigment_at_returns_empty_stack_in_mock() -> None:
+def test_pigment_at_unknown_plan_refuses(tmp_path: Path, monkeypatch) -> None:
+    _isolate(monkeypatch, tmp_path)
     from backend.mcp.tools import introspection
     r = introspection.pigment_at("plan_x", 5, 5)
-    assert r.ok is True
-    assert r.data["impressions"] == []
+    assert r.ok is False
+    assert r.errors[0].code in ("PLAN_NOT_FOUND", "NO_ACTIVE_SESSION")
+
+
+def test_dE_at_unknown_plan_refuses(tmp_path: Path, monkeypatch) -> None:
+    _isolate(monkeypatch, tmp_path)
+    from backend.mcp.tools import introspection
+    r = introspection.dE_at("plan_x", 5, 5)
+    assert r.ok is False
+    assert r.errors[0].code in ("PLAN_NOT_FOUND", "NO_ACTIVE_SESSION")
 
 
 # Tier 4 — Session (4 tools, real)
