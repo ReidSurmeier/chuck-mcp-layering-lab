@@ -71,3 +71,17 @@ test_large.png
 .sentryclirc
 .gitnexus
 .venv-v23/
+
+# ruflo / claude-flow scratch state (NOT CLAUDE.md or .claude/ — those are
+# user-managed config that may or may not want to be committed)
+.claude-flow/
+.swarm/
+agentdb.rvf
+agentdb.rvf.lock
+ruvector.db
+
+# accidental pip-redirect output files (=*)
+=*
+
+# corpus eval scratch
+corpus/eval-*.md
