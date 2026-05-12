@@ -1,10 +1,4 @@
-"""Ring 2 fixtures — stdio MCP server subprocess + tiny JSON-RPC client.
-
-The real FastMCP wiring lands in D19. Until then the fixture launches a
-subprocess pointed at the current stub ``backend.mcp.v23_server`` which
-does not yet speak JSON-RPC. That is fine: the only Ring 2 placeholder
-test xfails until D19.1 lands the handshake.
-"""
+"""Ring 2 fixtures — stdio MCP server subprocess + tiny JSON-RPC client."""
 from __future__ import annotations
 
 import json
@@ -31,7 +25,12 @@ class MCPStdioClient:
     proc: subprocess.Popen
     _id: int = 0
 
-    def call(self, method: str, params: dict[str, Any] | None = None, timeout: float = 30.0) -> dict[str, Any]:
+    def call(
+        self,
+        method: str,
+        params: dict[str, Any] | None = None,
+        timeout: float = 30.0,
+    ) -> dict[str, Any]:
         self._id += 1
         req = {
             "jsonrpc": "2.0",
@@ -41,13 +40,26 @@ class MCPStdioClient:
         }
         assert self.proc.stdin is not None
         assert self.proc.stdout is not None
-        self.proc.stdin.write(json.dumps(req) + "\n")
+        payload = json.dumps(req).encode("utf-8")
+        self.proc.stdin.write(f"Content-Length: {len(payload)}\r\n\r\n".encode("ascii"))
+        self.proc.stdin.write(payload)
         self.proc.stdin.flush()
-        # NOTE: real impl will read until matching ``id`` and obey
-        # Content-Length framing. Placeholder reads one line so tests
-        # can xfail cleanly until D19.1.
-        line = self.proc.stdout.readline()
-        return json.loads(line) if line.strip() else {}
+        return self._read_response(timeout=timeout)
+
+    def _read_response(self, timeout: float = 30.0) -> dict[str, Any]:
+        assert self.proc.stdout is not None
+        headers: dict[str, str] = {}
+        while True:
+            line = self.proc.stdout.readline()
+            if line in (b"", b"\r\n", b"\n"):
+                break
+            key, _, value = line.decode("ascii").partition(":")
+            headers[key.lower()] = value.strip()
+        length = int(headers.get("content-length", "0"))
+        if length == 0:
+            return {}
+        body = self.proc.stdout.read(length)
+        return json.loads(body.decode("utf-8"))
 
     def close(self) -> None:
         try:
@@ -61,10 +73,8 @@ class MCPStdioClient:
 def mcp_stdio_client() -> Any:
     """Start the v23 server as a subprocess and yield a stdio client.
 
-    XFAIL-safe: if the server can't be launched in stdio mode yet
-    (pre-D19), the fixture still yields a client whose ``call()`` will
-    return ``{}`` so xfail'd tests record a clean failure rather than
-    an error during setup.
+    Launches the local Python module directly so the transport ring tests
+    validate the same console entry point as ``woodblock-mcp``.
     """
     cmd = [sys.executable, "-m", "backend.mcp.v23_server"]
     proc = subprocess.Popen(
@@ -73,8 +83,8 @@ def mcp_stdio_client() -> Any:
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-        text=True,
-        bufsize=1,
+        text=False,
+        bufsize=0,
     )
     client = MCPStdioClient(proc=proc)
     try:
