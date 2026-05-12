@@ -274,34 +274,26 @@ def score_stack_delta_e(plan_id: str, region: dict | None = None) -> ToolResult[
 
 
 def score_candidate_stack(plan_id: str) -> ToolResult[dict[str, Any]]:
-    weights = {
-        "visual_match": 0.40,
-        "carveability": 0.20,
-        "simplicity": 0.15,
-        "underprint_utility": 0.15,
-        "template_fit": 0.10,
-    }
-    # Mock scores; D10 populates from real Plan
-    components = {
-        "visual_match": 0.5,
-        "carveability": 0.5,
-        "simplicity": 0.5,
-        "underprint_utility": 0.5,
-        "template_fit": 0.5,
-    }
-    overall = sum(weights[k] * components[k] for k in weights)
-    data = {
-        "plan_id": plan_id,
-        "overall": overall,
-        **components,
-        "component_weights": weights,
-        "notes": (
-            "Mock scores — D10 wires real component calculations. "
-            "Reported as if pre-mixed in a well (Mixbox t1); actual overprint "
-            "may shift colors ΔE 4–8 deeper into the stack."
-        ),
-    }
-    return ToolResult(ok=True, data=data)
+    """5-component breakdown computed from a persisted plan when found."""
+    from backend.services.v23.core import score as _score
+
+    try:
+        plan = _orch.load_plan(plan_id)
+    except _orch.OrchestratorError:
+        # Unknown plan — fall back to neutral 0.5 mock for backwards-compat
+        weights = {"visual_match": 0.40, "carveability": 0.20, "simplicity": 0.15,
+                   "underprint_utility": 0.15, "template_fit": 0.10}
+        components = {k: 0.5 for k in weights}
+        overall = sum(weights[k] * components[k] for k in weights)
+        return ToolResult(
+            ok=True,
+            data={
+                "plan_id": plan_id, "overall": overall, **components,
+                "component_weights": weights,
+                "notes": "Plan not found — returned neutral mock scores. Run propose_stack first.",
+            },
+        )
+    return ToolResult(ok=True, data=_score.score_plan_real(plan))
 
 
 # ---------------------------------------------------------------------------
