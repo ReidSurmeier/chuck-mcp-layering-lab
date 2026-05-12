@@ -5,15 +5,22 @@ export const dynamic = "force-dynamic";
 const BACKEND = process.env.BACKEND_URL || "http://localhost:8001";
 
 export async function POST(req: NextRequest) {
+  const apiKey = process.env.BACKEND_API_KEY;
+  if (!apiKey) {
+    return new Response(JSON.stringify({ error: "Missing authentication" }), {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
   const body = await req.formData();
-  const apiKey = process.env.BACKEND_API_KEY ?? req.headers.get("X-API-Key");
 
   let backendRes: Response;
   try {
     backendRes = await fetch(`${BACKEND}/api/preview-stream`, {
       method: "POST",
       headers: {
-        ...(apiKey ? { "X-API-Key": apiKey } : {}),
+        "X-API-Key": apiKey,
       },
       body,
       // @ts-expect-error - duplex needed for streaming request

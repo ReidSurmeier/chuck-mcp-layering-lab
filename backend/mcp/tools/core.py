@@ -1,11 +1,7 @@
-"""D9A — Tier 0 core flow tool decorators (10 tools).
+"""D9A — Tier 0 core flow tools (10 tools).
 
-Mock-real hybrid per addendum-v5: every tool wired with stable signature
-+ valid Pydantic + ``ToolResult[T]``. Real logic where backing module
-exists; structured ``IMPL_PENDING`` ``WoodblockError`` everywhere else.
-
-When the FastMCP server lands in D19, each tool gets the ``@server.tool``
-decorator on top of these plain Python entries.
+Every tool is callable directly and through the MCP registry, returning a
+``ToolResult[T]`` envelope instead of raising user-facing exceptions.
 
 Per addendum-v4 WB-LANG-02: every t1_mixbox recipe carries the
 "as if pre-mixed" qualifier so artists never confuse Mixbox prediction
@@ -13,7 +9,6 @@ with overprint physics.
 """
 from __future__ import annotations
 
-import time
 from pathlib import Path
 from typing import Any, Literal
 
@@ -23,7 +18,24 @@ from backend.services.v23.core import templates as _templates
 from backend.services.v23.stages import s1_ingest
 
 _VALID_SOLVE_PROFILES = ("fast", "default", "thorough")
-_VALID_FOCUS_MODES = ("composite", "heatmap", "per_impression", "confidence", "quad", "recipe", "pixel")
+_VALID_FOCUS_MODES = (
+    "composite",
+    "heatmap",
+    "per_impression",
+    "confidence",
+    "quad",
+    "recipe",
+    "pixel",
+)
+FocusMode = Literal[
+    "composite",
+    "heatmap",
+    "per_impression",
+    "confidence",
+    "quad",
+    "recipe",
+    "pixel",
+]
 
 
 def _impl_pending(code: str, hint: str) -> WoodblockError:
@@ -36,7 +48,7 @@ def _impl_pending(code: str, hint: str) -> WoodblockError:
     )
 
 
-def _render_de_heatmap(plan: "_orch.PartialPlan", plan_dir: Path) -> Path | None:
+def _render_de_heatmap(plan: _orch.PartialPlan, plan_dir: Path) -> Path | None:
     """Per-pixel ΔE76 heatmap PNG (viridis-style ramp). Saves under plan_dir."""
     if (plan.alpha_stack_path is None or not Path(plan.alpha_stack_path).is_file()):
         return None
@@ -47,6 +59,7 @@ def _render_de_heatmap(plan: "_orch.PartialPlan", plan_dir: Path) -> Path | None
     import jax.numpy as jnp
     import numpy as np
     from PIL import Image
+
     from backend.services.v23.core import color, forward_render_jax
 
     alpha_stack = np.load(plan.alpha_stack_path)  # (M, H, W)
@@ -69,7 +82,7 @@ def _render_de_heatmap(plan: "_orch.PartialPlan", plan_dir: Path) -> Path | None
     return out
 
 
-def _render_quad_grid(plan: "_orch.PartialPlan", plan_dir: Path) -> Path | None:
+def _render_quad_grid(plan: _orch.PartialPlan, plan_dir: Path) -> Path | None:
     """4-up grid: target | composite | dE-heatmap | confidence(state colour-map)."""
     if plan.alpha_stack_path is None or not Path(plan.alpha_stack_path).is_file():
         return None
@@ -80,6 +93,7 @@ def _render_quad_grid(plan: "_orch.PartialPlan", plan_dir: Path) -> Path | None:
     import jax.numpy as jnp
     import numpy as np
     from PIL import Image
+
     from backend.services.v23.core import color, forward_render_jax
     from backend.services.v23.stages import s10_emit
 
@@ -172,7 +186,6 @@ def analyze_image(path: str) -> ToolResult[dict[str, Any]]:
 
 def _classify_into_families(rgb: Any) -> dict[str, float]:
     """Cheap measurable hue-family clustering — coarse OKLab bucketing."""
-    import numpy as np
 
     arr = (rgb.astype("float32") / 255.0).reshape(-1, 3)
     r, g, b = arr[:, 0], arr[:, 1], arr[:, 2]
@@ -224,7 +237,7 @@ def build_hue_family_map(path: str) -> ToolResult[dict[str, Any]]:
 
 
 # ---------------------------------------------------------------------------
-# T0.4 — propose_stack (DEGRADED: real solver lands at D10+)
+# T0.4 — propose_stack
 # ---------------------------------------------------------------------------
 
 
@@ -235,11 +248,7 @@ def propose_stack(
     m_prior: int | None = None,
     strategy_template: str | None = None,
 ) -> ToolResult[dict[str, Any]]:
-    """Run S1→S2→S3 + template suggest. S5 solver still IMPL_PENDING.
-
-    Real ``plan_id`` + persisted ``plan.json`` under the active session
-    even though impressions are empty until the real solver wires at D10.
-    """
+    """Run the v23 pipeline and persist a plan under the active session."""
     try:
         plan = _orch.run_pipeline_partial(
             path,
@@ -268,18 +277,20 @@ def propose_stack(
             "reconstruction_dE_p95": plan.reconstruction_dE_p95,
             "solver_wall_s": plan.solver_wall_s,
             "solver_status": plan.solver_status,
+            "solver_optimized_shape": plan.solver_optimized_shape,
+            "solver_downsample_scale": plan.solver_downsample_scale,
         },
     )
 
 
 # ---------------------------------------------------------------------------
-# T0.5 — inspect_plan (MOCK: real artifact resolution lands at D10+)
+# T0.5 — inspect_plan
 # ---------------------------------------------------------------------------
 
 
 def inspect_plan(
     plan_id: str,
-    focus: Literal["composite", "heatmap", "per_impression", "confidence", "quad", "recipe", "pixel"] = "composite",
+    focus: FocusMode = "composite",
 ) -> ToolResult[dict[str, Any]]:
     if focus not in _VALID_FOCUS_MODES:
         return ToolResult(
@@ -367,13 +378,15 @@ def inspect_plan(
                 "artifact_path": str(quad_path) if quad_path else None,
             },
         )
-    # pixel — would need (x, y) args; use dE_at + pigment_at instead
     return ToolResult(
-        ok=True,
-        data={"plan_id": plan_id, "focus": focus, "artifact_path": None},
-        errors=[_impl_pending(
-            "IMPL_PENDING_PIXEL",
-            "use dE_at(plan_id, x, y) or pigment_at(plan_id, x, y) for pixel-level inspection",
+        ok=False,
+        data=None,
+        errors=[WoodblockError(
+            tier="refusal",
+            code="PIXEL_FOCUS_REQUIRES_COORDS",
+            message="inspect_plan focus='pixel' needs coordinates",
+            hint="use dE_at(plan_id, x, y) or pigment_at(plan_id, x, y)",
+            recoverable=True,
         )],
     )
 
@@ -424,21 +437,21 @@ def simulate_candidate_stack(plan_id: str) -> ToolResult[dict[str, Any]]:
 
 
 # ---------------------------------------------------------------------------
-# T0.7 — score_stack_delta_e (cheap ΔE lookup, mock returns 0.0)
+# T0.7 — score_stack_delta_e
 # ---------------------------------------------------------------------------
 
 
 def score_stack_delta_e(plan_id: str, region: dict | None = None) -> ToolResult[dict[str, Any]]:
-    """Cheap ΔE lookup from persisted Plan; falls back on unknown plan_id."""
+    """Cheap ΔE lookup from a persisted plan."""
     try:
         plan = _orch.load_plan(plan_id)
-    except _orch.OrchestratorError:
+    except _orch.OrchestratorError as exc:
         return ToolResult(
             ok=True,
             data={"plan_id": plan_id, "dE_mean": 0.0, "dE_p95": 0.0, "region": region},
-            errors=[_impl_pending(
+            errors=[exc.error, _impl_pending(
                 "IMPL_PENDING_DE_LOOKUP",
-                "plan_id not found — returning neutral mock. Run propose_stack first.",
+                "plan_id not found — returning neutral value. Run propose_stack first.",
             )],
         )
     return ToolResult(
@@ -467,7 +480,7 @@ def score_candidate_stack(plan_id: str) -> ToolResult[dict[str, Any]]:
     try:
         plan = _orch.load_plan(plan_id)
     except _orch.OrchestratorError:
-        # Unknown plan — fall back to neutral 0.5 mock for backwards-compat
+        # Unknown plan — fall back to neutral 0.5 for backwards-compat.
         weights = {"visual_match": 0.40, "carveability": 0.20, "simplicity": 0.15,
                    "underprint_utility": 0.15, "template_fit": 0.10}
         components = {k: 0.5 for k in weights}
@@ -477,23 +490,22 @@ def score_candidate_stack(plan_id: str) -> ToolResult[dict[str, Any]]:
             data={
                 "plan_id": plan_id, "overall": overall, **components,
                 "component_weights": weights,
-                "notes": "Plan not found — returned neutral mock scores. Run propose_stack first.",
+                "notes": "Plan not found — returned neutral scores. Run propose_stack first.",
             },
         )
     return ToolResult(ok=True, data=_score.score_plan_real(plan))
 
 
 # ---------------------------------------------------------------------------
-# T0.9 — export_print_plan (ZIP + recipe.md; mock zips empty content)
+# T0.9 — export_print_plan
 # ---------------------------------------------------------------------------
 
 
 def export_print_plan(plan_id: str, out_dir: str | None = None) -> ToolResult[dict[str, Any]]:
     """Real ZIP export via S10 emitter when the plan exists in the active session.
 
-    Falls back to the stub ZIP if the plan_id is unknown (mock-mode plans created
-    by ``propose_stack`` without the orchestrator). Side-writes ``recipe.md`` to
-    ``out_dir`` for direct inspection.
+    Falls back to a minimal ZIP if the plan_id is unknown. Side-writes
+    ``recipe.md`` to ``out_dir`` for direct inspection.
     """
     from backend.services.v23.stages import s10_emit
 
@@ -510,7 +522,7 @@ def export_print_plan(plan_id: str, out_dir: str | None = None) -> ToolResult[di
             data={"plan_id": plan_id, "zip_path": str(zip_path), "recipe_path": str(recipe_path)},
         )
     except s10_emit.EmitError as exc:
-        # Plan_id unknown — fall back to minimal stub ZIP for backwards-compat
+        # Plan_id unknown — fall back to minimal ZIP for backwards-compat.
         import zipfile
 
         zip_path = out / f"{plan_id}.zip"
@@ -529,12 +541,20 @@ def export_print_plan(plan_id: str, out_dir: str | None = None) -> ToolResult[di
 # ---------------------------------------------------------------------------
 
 
-def generate_print_recipe_report(plan_id: str, format: str = "markdown") -> ToolResult[dict[str, Any]]:
-    md = _MOCK_RECIPE.format(plan_id=plan_id)
+def generate_print_recipe_report(
+    plan_id: str,
+    format: str = "markdown",
+) -> ToolResult[dict[str, Any]]:
+    from backend.services.v23.stages import s10_emit
+    try:
+        plan = _orch.load_plan(plan_id)
+        md = s10_emit._build_recipe_md(plan)
+    except _orch.OrchestratorError:
+        md = _FALLBACK_RECIPE.format(plan_id=plan_id)
     return ToolResult(ok=True, data={"plan_id": plan_id, "format": format, "markdown": md})
 
 
-_MOCK_RECIPE = """# Print recipe — {plan_id}
+_FALLBACK_RECIPE = """# Print recipe — {plan_id}
 
 > **Note on color simulation (t1_mixbox)**: this recipe was rendered as if
 > pigments were pre-mixed in a well before application. Actual mokuhanga
@@ -553,10 +573,8 @@ Impression 06: dark key/detail — hair, eyes, mouth, nose lines
 
 ## Notes
 
-- v23-MCP day-1 ship: solver returns mock plan_ids. Real plan generation
-  arrives at D10 (close_emma corpus gate).
-- All confidence labels in mock mode are reported as ``ambiguous`` per
-  addendum-v3 fix 4 until real ΔE scores fire.
+- This fallback recipe is emitted when a plan_id is not available in the
+  active session. Run propose_stack first for a persisted plan recipe.
 """
 
 

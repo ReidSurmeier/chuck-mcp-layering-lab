@@ -12,27 +12,47 @@ Underprints are **designed by printmaking rules** (skin-tone support, cool-under
 
 ## Quickstart
 
-Tooling assumes Linux dev box (Opus 4.7 host) + Windows GPU box over Tailscale, WSL2 Ubuntu serves the MCP subprocess.
+Tooling assumes a Linux/WSL2 host with an NVIDIA GPU. The current tested host
+uses an RTX 4070 SUPER, driver CUDA 13.1, and JAX 0.10.0 with the CUDA 13
+plugin.
 
 ```bash
-# 1. Install package + solver extras
-uv tool install --extra solver --extra mcp --extra io woodblock-mcp
+# 1. Create the local venv
+python -m venv .venv-v23
+. .venv-v23/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -e ".[solver,mcp,io,dev]"
 
-# 2. Register with Claude Code (stdio over SSH, see ADR-0003)
+# 2. Verify JAX is on CUDA
+python - <<'PY'
+import jax
+print(jax.devices())
+print(jax.default_backend())
+PY
+
+# 3. Register with Claude Code (stdio over SSH, see ADR-0003)
 claude mcp add woodblock_stack --scope user -- \
   ssh reidsurmeier2@100.67.23.102 \
-  "wsl -d Ubuntu -- /home/reidsurmeier2/.venv-v23/bin/woodblock-mcp"
+  "wsl -d Ubuntu -- /home/reidsurmeier/src/woodblock-reidsurmeier-wtf/.venv-v23/bin/woodblock-mcp"
 
-# 3. Verify
+# 4. Verify the registration
 claude mcp list | grep woodblock_stack
 ```
 
-Smoke test from Claude Code:
+For direct local smoke tests:
 
-```
-/mcp call woodblock_stack ingest_reference_image '{"path": "corpus/portraits/emma_01.png"}'
-/mcp call woodblock_stack analyze_image '{"path": "corpus/portraits/emma_01.png"}'
-/mcp call woodblock_stack propose_stack '{"image_path": "...", "solve_profile": "fast"}'
+```bash
+WOODBLOCK_HOME=/tmp/woodblock-smoke \
+WOODBLOCK_DISABLE_SAM=1 \
+JAX_PLATFORMS=cuda \
+XLA_PYTHON_CLIENT_PREALLOCATE=false \
+python - <<'PY'
+from backend.mcp.registry import call_mcp_tool
+image = "corpus/reid_untitled_01/original.png"
+print(call_mcp_tool("ingest_reference_image", {"path": image}))
+print(call_mcp_tool("analyze_image", {"path": image}))
+print(call_mcp_tool("propose_stack", {"path": image, "solve_profile": "fast"}))
+PY
 ```
 
 ## Architecture
@@ -47,10 +67,10 @@ woodblock_stack subprocess (WSL2 on Windows GPU box)
 backend/services/v23/
   S1 ingest → S2 SAM (HTTP gateway to v20) → S3 palette (13-Mixbox)
   → S4 adjacency + strategy template pick
-  → S5 JAX L-BFGS-B 4-level pyramid (8 base + 3 underprint-rule loss terms)
-  → S6 DSATUR block packing (post-solve)
-  → S7 three-state mask classifier
-  → S8 carveability morphology + post-solve topology repair (ADR-0005)
+  → S5 JAX L-BFGS inverse solve over alpha masks
+  → S6 three-state mask classifier
+  → S7 DSATUR block packing
+  → S8 topology diagnostics / repair hooks
   → S9 SVG vectorize + kento marks
   → S10 manifest v23.0 + ZIP (always bundles recipe.md)
   |
@@ -58,20 +78,41 @@ backend/services/v23/
 ~/.woodblock/v23/ filesystem artifacts (manifests, masks, plans, sessions)
   |
   v (opt-in)
-Next.js /v23/review/{plan_id} viewer — read-only, <= 800 LOC
+Next.js API proxy routes for preview/result access
 ```
 
-Day-1 ships **11 MCP tools** (ADR-0004); the remaining 22 land as v23.1 once Tier-1 5/5 is green on the corpus. See `CONTEXT.md` for locked glossary (Block / Impression / Mask / Pigment / Order / Underprint / Stack / Plan / Pull group / Strategy template / Solve profile / Render tier / Overprint / Mixing / Glazing).
+The registered MCP surface is generated from `backend/mcp/registry.py` and
+includes core flow, HITL, calibration, introspection, session, carve, and overlay
+tools. Call `tools/list` through MCP or `backend.mcp.registry.list_mcp_tools()`
+to inspect the exact surface in a checkout.
+
+Large source images are solved on a bounded internal grid and then upscaled back
+to full source resolution before render/vector/export. This avoids exhausting
+12 GB GPUs during JAX L-BFGS while still producing full-size masks and SVGs.
+Override the internal budget with `WOODBLOCK_SOLVER_MAX_PIXELS`; the current
+defaults are 256k fast, 512k default, and 768k thorough. `solver_telemetry`
+reports `optimized_shape` and `downsample_scale` for each plan.
 
 ## Render tiers
 
 | Tier | Engine | Status | When |
 |---|---|---|---|
-| T1 | Mixbox 7-D latent lerp | ships v23 | default, generic 13-pigment palette, stacks ≤ 3 |
-| T2 | Empirical 2-layer LUT | v23.1 | once artist uploads swatch-sheet calibration |
+| T1 | Mixbox 7-D latent lerp | ships v23 | default, generic 13-pigment palette |
+| T2 | Empirical 2-layer LUT bias | ships v23 local path | after `upload_swatch_overprint_matrix` |
 | T3 | K-M two-flux recursion (8λ K,S fit) | v24 | spectral pigment fit available + stack > 3 |
 
-T1 is directionally accurate, ΔE 4–8 absolute shift vs reality on deep stacks. Every T1 recipe ships the honest qualifier. See ADR-0002 for why overlay (overprint) is not mixing.
+T1 is directionally useful, not physically final: it renders pigments as if
+pre-mixed, while mokuhanga is cumulative overprint glazing. T2 applies the
+active swatch-matrix correction when present. T3 remains deferred.
+
+## Current Limits
+
+The current optimizer is still primarily an RGB reconstruction objective through
+the forward renderer. It emits overlapping alpha impressions and cumulative pull
+artifacts, but broad underlayer structure, brushed-zone grouping, non-machinable
+geometry penalties, and island/disjointness penalties are not fully inside the
+loss yet. Treat outputs as testable v23 plans, not final CNC-ready artistic
+recommendations without review.
 
 ## Documentation
 

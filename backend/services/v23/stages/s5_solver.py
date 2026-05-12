@@ -16,6 +16,7 @@ do NOT live in this loss. They run post-solve in
 """
 from __future__ import annotations
 
+import os
 import time
 from dataclasses import dataclass
 from typing import Any, Literal
@@ -25,11 +26,13 @@ import jax.numpy as jnp
 import jaxopt
 import numpy as np
 from numpy.typing import NDArray
+from PIL import Image
 
 from backend.services.v23.core import forward_render_jax
 
 _VALID_SOLVE_PROFILES = ("fast", "default", "thorough")
 _PROFILE_ITERS = {"fast": 60, "default": 180, "thorough": 400}
+_PROFILE_MAX_PIXELS = {"fast": 256_000, "default": 512_000, "thorough": 768_000}
 
 
 @dataclass(frozen=True)
@@ -44,6 +47,9 @@ class SolverResult:
     iters_used: int
     wall_s: float
     solve_profile: str
+    optimized_shape: tuple[int, int]
+    original_shape: tuple[int, int]
+    downsample_scale: float
 
 
 def _sigmoid_box(alpha_raw: jnp.ndarray) -> jnp.ndarray:
@@ -92,6 +98,64 @@ def _alphas_to_impressions(
     return impressions
 
 
+def _max_solver_pixels(solve_profile: str) -> int:
+    raw = os.environ.get("WOODBLOCK_SOLVER_MAX_PIXELS")
+    if raw:
+        try:
+            value = int(raw)
+        except ValueError:
+            value = 0
+        if value >= 4_096:
+            return value
+    return _PROFILE_MAX_PIXELS[solve_profile]
+
+
+def _resize_rgb(rgb: NDArray[np.float32], size: tuple[int, int]) -> NDArray[np.float32]:
+    """Resize HWC RGB in [0, 1]. ``size`` is (width, height)."""
+    arr = np.clip(rgb * 255.0, 0, 255).astype(np.uint8)
+    img = Image.fromarray(arr, "RGB").resize(size, Image.Resampling.LANCZOS)
+    return (np.asarray(img, dtype=np.float32) / 255.0).astype(np.float32)
+
+
+def _resize_alpha_stack(
+    alpha_stack: NDArray[np.float32],
+    size: tuple[int, int],
+) -> NDArray[np.float32]:
+    """Resize MHW alpha stack. ``size`` is (width, height)."""
+    out: list[NDArray[np.float32]] = []
+    for alpha in alpha_stack:
+        arr = np.clip(alpha * 255.0, 0, 255).astype(np.uint8)
+        img = Image.fromarray(arr, "L").resize(size, Image.Resampling.BILINEAR)
+        out.append(np.asarray(img, dtype=np.float32) / 255.0)
+    return np.stack(out, axis=0).astype(np.float32)
+
+
+def _prepare_solver_grid(
+    target_rgb: NDArray[np.float32],
+    alpha_init: NDArray[np.float32],
+    *,
+    solve_profile: str,
+) -> tuple[NDArray[np.float32], NDArray[np.float32], tuple[int, int], float]:
+    """Downsample large solves to fit commodity GPUs.
+
+    The persisted plan still carries full-resolution alpha masks. This function
+    only bounds the expensive L-BFGS state so native 2K images do not exhaust
+    12 GB GPUs before any MCP artifacts can be emitted.
+    """
+    h, w = target_rgb.shape[:2]
+    max_pixels = _max_solver_pixels(solve_profile)
+    current_pixels = h * w
+    if current_pixels <= max_pixels:
+        return target_rgb, alpha_init, (h, w), 1.0
+
+    scale = (max_pixels / float(current_pixels)) ** 0.5
+    new_w = max(64, int(round(w * scale)))
+    new_h = max(64, int(round(h * scale)))
+    target_small = _resize_rgb(target_rgb, (new_w, new_h))
+    alpha_small = _resize_alpha_stack(alpha_init, (new_w, new_h))
+    return target_small, alpha_small, (new_h, new_w), scale
+
+
 def run_s5_solver(
     target_rgb: NDArray[np.float32],
     pigment_idx: NDArray[np.int32],
@@ -101,21 +165,28 @@ def run_s5_solver(
 ) -> SolverResult:
     """JAX L-BFGS refinement of ``alpha_init`` to minimise forward-render error."""
     if solve_profile not in _VALID_SOLVE_PROFILES:
-        raise ValueError(f"solve_profile must be one of {_VALID_SOLVE_PROFILES}, got {solve_profile!r}")
-
-    h, w, _ = target_rgb.shape
-    m = int(len(pigment_idx))
-    if alpha_init.shape != (m, h, w):
         raise ValueError(
-            f"alpha_init shape {alpha_init.shape} != expected ({m}, {h}, {w})"
+            f"solve_profile must be one of {_VALID_SOLVE_PROFILES}, got {solve_profile!r}"
+        )
+
+    orig_h, orig_w, _ = target_rgb.shape
+    m = int(len(pigment_idx))
+    if alpha_init.shape != (m, orig_h, orig_w):
+        raise ValueError(
+            f"alpha_init shape {alpha_init.shape} != expected ({m}, {orig_h}, {orig_w})"
         )
 
     iters = _PROFILE_ITERS[solve_profile]
+    target_solve, alpha_solve, optimized_shape, downsample_scale = _prepare_solver_grid(
+        target_rgb,
+        alpha_init,
+        solve_profile=solve_profile,
+    )
     # Convert α from [0,1] to logit space so unconstrained L-BFGS works
-    clipped = np.clip(alpha_init, 1e-4, 1.0 - 1e-4)
+    clipped = np.clip(alpha_solve, 0.02, 0.98)
     init_raw = np.log(clipped / (1.0 - clipped)).astype(np.float32)
 
-    target_j = jnp.asarray(target_rgb, dtype=jnp.float32)
+    target_j = jnp.asarray(target_solve, dtype=jnp.float32)
     pigments_j = jnp.asarray(pigment_idx, dtype=jnp.int32)
 
     def loss_fn(a_raw):
@@ -127,12 +198,21 @@ def run_s5_solver(
     result = solver.run(jnp.asarray(init_raw))
     wall_s = time.perf_counter() - t0
     alpha_raw_final = result.params
-    alpha_stack = np.asarray(jax.nn.sigmoid(alpha_raw_final))
+    alpha_stack_solve = np.asarray(jax.nn.sigmoid(alpha_raw_final))
+    alpha_stack = (
+        _resize_alpha_stack(alpha_stack_solve, (orig_w, orig_h))
+        if optimized_shape != (orig_h, orig_w)
+        else alpha_stack_solve
+    )
     final_loss = float(loss_fn(alpha_raw_final))
 
     pigment_tuple = tuple(int(p) for p in pigment_idx.tolist())
     impressions = _alphas_to_impressions(alpha_stack, pigment_tuple)
-    iters_used = int(getattr(result.state, "iter_num", iters)) if hasattr(result, "state") else iters
+    iters_used = (
+        int(getattr(result.state, "iter_num", iters))
+        if hasattr(result, "state")
+        else iters
+    )
 
     return SolverResult(
         alpha_stack=alpha_stack.astype(np.float32),
@@ -143,6 +223,9 @@ def run_s5_solver(
         iters_used=iters_used,
         wall_s=wall_s,
         solve_profile=solve_profile,
+        optimized_shape=optimized_shape,
+        original_shape=(orig_h, orig_w),
+        downsample_scale=float(downsample_scale),
     )
 
 

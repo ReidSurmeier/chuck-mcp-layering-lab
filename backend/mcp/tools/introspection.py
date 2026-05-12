@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Any
 
 from backend.mcp.errors import ToolResult, WoodblockError
-from backend.services.v23.core import forward_render_jax, templates
+from backend.services.v23.core import forward_render_jax
 
 
 def get_pigments() -> ToolResult[dict[str, Any]]:
@@ -58,36 +58,43 @@ def get_defaults() -> ToolResult[dict[str, Any]]:
 
 
 def solver_telemetry(plan_id: str) -> ToolResult[dict[str, Any]]:
-    """Read solver run summary from persisted plan; degrade if not found."""
+    """Read solver run summary from a persisted plan."""
     from backend.services.v23 import orchestrator as _orch
 
     try:
         plan = _orch.load_plan(plan_id)
-    except _orch.OrchestratorError:
+    except _orch.OrchestratorError as exc:
         return ToolResult(
             ok=True,
-            data={"plan_id": plan_id, "pyramid_levels_completed": 0,
-                  "iters_per_level": [], "loss_per_level": [],
-                  "rule_loss_breakdown": {}, "exit_reason": "mock",
-                  "wall_time_s": 0.0, "divergence_flags": []},
-            errors=[WoodblockError(
-                tier="degraded", code="IMPL_PENDING_TELEMETRY",
-                message=f"plan_id {plan_id!r} not found — run propose_stack first",
-                recoverable=True,
-            )],
+            data={
+                "plan_id": plan_id,
+                "pyramid_levels_completed": 0,
+                "iters_per_level": [],
+                "loss_per_level": [],
+                "rule_loss_breakdown": {},
+                "exit_reason": "unknown_plan",
+                "wall_time_s": 0.0,
+                "divergence_flags": [],
+                "optimized_shape": [],
+                "downsample_scale": 1.0,
+            },
+            errors=[exc.error],
         )
+    profile_iters = {"fast": 60, "default": 180, "thorough": 400}
     return ToolResult(
         ok=True,
         data={
             "plan_id": plan_id,
             "pyramid_levels_completed": 1,  # single-level for day-1
-            "iters_per_level": [{"fast": 60, "default": 180, "thorough": 400}.get(plan.solve_profile, 180)],
+            "iters_per_level": [profile_iters.get(plan.solve_profile, 180)],
             "loss_per_level": [],  # full per-iter trace lands at D14.b
             "rule_loss_breakdown": {},
             "exit_reason": plan.solver_status,
             "wall_time_s": plan.solver_wall_s,
             "divergence_flags": [],
             "solve_profile": plan.solve_profile,
+            "optimized_shape": plan.solver_optimized_shape,
+            "downsample_scale": plan.solver_downsample_scale,
             "impression_count": len(plan.impressions),
             "block_count": plan.block_count,
         },
@@ -104,7 +111,6 @@ _PIGMENT_NAMES = [
 
 def _delta_e76(rgb_a: tuple[float, float, float], rgb_b: tuple[float, float, float]) -> float:
     """Quick ΔE76 in CIE Lab. Cheap + monotonic with perceptual difference."""
-    import numpy as _np
     def _srgb_to_lab(rgb: tuple[float, float, float]) -> tuple[float, float, float]:
         r, g, b = (max(0.0, min(1.0, c)) for c in rgb)
         def _linearise(c: float) -> float:
@@ -138,7 +144,9 @@ def dE_at(plan_id: str, x: int, y: int) -> ToolResult[dict[str, Any]]:
         ])
 
     from pathlib import Path
+
     import numpy as _np
+
     from backend.services.v23 import orchestrator as _orch
 
     try:
@@ -213,7 +221,9 @@ def pigment_at(plan_id: str, x: int, y: int) -> ToolResult[dict[str, Any]]:
         ])
 
     from pathlib import Path
+
     import numpy as _np
+
     from backend.services.v23 import orchestrator as _orch
 
     try:

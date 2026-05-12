@@ -42,6 +42,26 @@ def test_s5_solver_warm_start_beats_random_init() -> None:
     )
 
 
+def test_s5_solver_bounds_large_internal_grid(monkeypatch) -> None:
+    """Large targets are optimized on a bounded grid, then returned full-size."""
+    from backend.services.v23.stages import s5_solver
+
+    target = np.zeros((128, 128, 3), dtype=np.float32)
+    alpha = np.ones((2, 128, 128), dtype=np.float32) * 0.5
+
+    monkeypatch.setenv("WOODBLOCK_SOLVER_MAX_PIXELS", "4096")
+    target_small, alpha_small, optimized_shape, scale = s5_solver._prepare_solver_grid(
+        target,
+        alpha,
+        solve_profile="fast",
+    )
+
+    assert target_small.shape[:2] == (64, 64)
+    assert alpha_small.shape == (2, 64, 64)
+    assert optimized_shape == (64, 64)
+    assert scale == 0.5
+
+
 def test_s5_solver_respects_solve_profile_iter_budgets() -> None:
     """fast / default / thorough produce different iter counts."""
     from backend.services.v23.stages import s4_warmstart, s5_solver

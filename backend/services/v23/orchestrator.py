@@ -17,6 +17,7 @@ import json
 import os
 import time
 from dataclasses import asdict, dataclass, field
+from datetime import UTC
 from pathlib import Path
 from typing import Any, Literal
 
@@ -60,6 +61,8 @@ class PartialPlan:
     reconstruction_dE_mean: float | None = None
     reconstruction_dE_p95: float | None = None
     solver_wall_s: float = 0.0
+    solver_optimized_shape: list[int] = field(default_factory=list)
+    solver_downsample_scale: float = 1.0
     state_summary: list[dict[str, Any]] = field(default_factory=list)
     block_count: int = 0
     impression_to_block: dict[str, int] = field(default_factory=dict)
@@ -93,8 +96,8 @@ def _persist_plan(plan: PartialPlan) -> Path:
 
 
 def _now_iso() -> str:
-    from datetime import datetime, timezone
-    return datetime.now(timezone.utc).isoformat()
+    from datetime import datetime
+    return datetime.now(UTC).isoformat()
 
 
 def run_pipeline_partial(
@@ -153,6 +156,8 @@ def run_pipeline_partial(
     reconstruction_dE_mean: float | None = None
     reconstruction_dE_p95: float | None = None
     solver_wall_s = 0.0
+    solver_optimized_shape: list[int] = []
+    solver_downsample_scale = 1.0
     state_summary: list[dict[str, Any]] = []
     block_count = 0
     impression_to_block: dict[str, int] = {}
@@ -178,15 +183,21 @@ def run_pipeline_partial(
             impressions = solve_result.impressions
             solver_status = "OK"
             solver_wall_s = solve_result.wall_s
+            solver_optimized_shape = [int(v) for v in solve_result.optimized_shape]
+            solver_downsample_scale = float(solve_result.downsample_scale)
 
             # Real ΔE76 in CIE Lab D65: forward-render with solver output,
             # diff against the canonical target, summarise. Replaces the
             # RGB-L2 proxy that was over/under-reporting wildly.
             import jax.numpy as _jnp
+
             from backend.services.v23.core import (
                 color as _color,
+            )
+            from backend.services.v23.core import (
                 forward_render_jax as _fr,
             )
+
             alpha_hwm = _np.transpose(solve_result.alpha_stack, (1, 2, 0))
             rendered_jax = _fr.forward_render(
                 _jnp.asarray(alpha_hwm, dtype=_jnp.float32),
@@ -247,6 +258,8 @@ def run_pipeline_partial(
         reconstruction_dE_mean=reconstruction_dE_mean,
         reconstruction_dE_p95=reconstruction_dE_p95,
         solver_wall_s=solver_wall_s,
+        solver_optimized_shape=solver_optimized_shape,
+        solver_downsample_scale=solver_downsample_scale,
         state_summary=state_summary,
         block_count=block_count,
         impression_to_block=impression_to_block,

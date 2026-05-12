@@ -6,6 +6,14 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ resultId: string }> },
 ) {
+  const apiKey = process.env.BACKEND_API_KEY;
+  if (!apiKey) {
+    return new Response(JSON.stringify({ error: "Missing authentication" }), {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
   const { resultId } = await params;
 
   // Sanitize
@@ -17,7 +25,9 @@ export async function GET(
   }
 
   try {
-    const backendRes = await fetch(`${BACKEND}/api/result/${resultId}`);
+    const backendRes = await fetch(`${BACKEND}/api/result/${resultId}`, {
+      headers: { "X-API-Key": apiKey },
+    });
 
     if (!backendRes.ok) {
       return new Response(await backendRes.text(), {
@@ -31,7 +41,7 @@ export async function GET(
       status: 200,
       headers: {
         "Content-Type": "image/png",
-        "Cache-Control": "public, max-age=1800",
+        "Cache-Control": "private, max-age=1800",
       },
     });
   } catch (err) {

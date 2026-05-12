@@ -3,8 +3,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 
 def _isolate(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setenv("WOODBLOCK_HOME", str(tmp_path))
@@ -289,10 +287,11 @@ def test_upload_swatch_matrix_missing_csv(tmp_path: Path, monkeypatch) -> None:
 def test_upload_swatch_matrix_real_csv(tmp_path: Path, monkeypatch) -> None:
     _isolate(monkeypatch, tmp_path)
     csv = tmp_path / "matrix.csv"
-    csv.write_text("base,top,dilution,rgb\n")
+    csv.write_text("base,top,dilution,r,g,b\n0,7,0.5,128,120,100\n")
     from backend.mcp.tools import overlay
     r = overlay.upload_swatch_overprint_matrix(str(csv))
     assert r.ok is True
+    assert r.data["tier_after_ingest"] == "t2_empirical"
 
 
 def test_compare_render_tiers_returns_dE_deltas() -> None:

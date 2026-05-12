@@ -25,7 +25,7 @@ dependencies = [
 
 [project.optional-dependencies]
 mcp = ["fastmcp>=2.0"]
-solver = ["jax[cuda12]>=0.4.30", "jaxopt>=0.8", "mixbox>=2.0", "colour-science>=0.4.4"]
+solver = ["jax[cuda13]>=0.10.0", "jaxopt>=0.8", "mixbox>=2.0", "colour-science>=0.4.4"]
 io = ["opencv-contrib-python>=4.10", "scikit-image>=0.24"]
 dev = ["pytest>=8.0", "pytest-asyncio>=0.23", "mypy>=1.10", "ruff>=0.5"]
 
