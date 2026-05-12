@@ -1,8 +1,8 @@
-# woodblock_stack — v23-MCP
+# Chuck MCP — woodblock_stack v23
 
-Mokuhanga **plausible plan synthesis** from one image, delivered as a local MCP server. Opus 4.7 drives a JAX inverse-stack solver, an optional pigment calibration path, and CNC-ready SVG output over filesystem handoffs. Single mode: one-image-in, plausible Emma-style print plan + plain-language recipe out.
+Mokuhanga **plausible plan synthesis** from one image, delivered as a local MCP server. Chuck MCP runs a JAX inverse-stack solver, an optional pigment calibration path, and CNC-ready SVG output over filesystem handoffs. Single mode: one-image-in, plausible Emma-style print plan + plain-language recipe out.
 
-This repo is the **research/production assistant** form of the workflow. The public web demo (v20, image → color separation → CNC SVGs, no underprint solver) lives at <https://color.reidsurmeier.wtf>. v23 is not a web app — it is an MCP server you wire into Claude Code.
+This repo is the **research/production assistant** form of the workflow. It is intentionally separate from the `emma-mokuhanga-mcp` experiment. The public web demo (v20, image → color separation → CNC SVGs, no underprint solver) lives at <https://color.reidsurmeier.wtf>. v23 is not a web app — it is an MCP server you wire into Claude Code.
 
 ## Posture (locked)
 
@@ -93,6 +93,15 @@ Override the internal budget with `WOODBLOCK_SOLVER_MAX_PIXELS`; the current
 defaults are 256k fast, 512k default, and 768k thorough. `solver_telemetry`
 reports `optimized_shape` and `downsample_scale` for each plan.
 
+`m_prior` is now honored by `propose_stack`; valid values are 4 through 12.
+When omitted, Chuck MCP uses profile-specific warm-start hints:
+
+| solve_profile | warm-start `m_prior` | S5 iterations |
+|---|---:|---:|
+| `fast` | 6 | 60 |
+| `default` | 8 | 180 |
+| `thorough` | 10 | 400 |
+
 ## Render tiers
 
 | Tier | Engine | Status | When |
@@ -105,14 +114,36 @@ T1 is directionally useful, not physically final: it renders pigments as if
 pre-mixed, while mokuhanga is cumulative overprint glazing. T2 applies the
 active swatch-matrix correction when present. T3 remains deferred.
 
+## Current Validation
+
+Reference run on `/srv/woodblock-share/input-images/close_emma_2002_2048.jpg`
+with `solve_profile=thorough`, GPU JAX, and the MCP registry path:
+
+| Metric | Latest | Previous bounded baseline |
+|---|---:|---:|
+| mean ΔE76 | 6.941 | 23.526 |
+| p95 ΔE76 | 17.772 | 66.061 |
+| optimized grid | 974×789 | 974×789 |
+| solver wall time | 27.7s | bounded GPU solve |
+| print order | light-to-dark, black last | black was not last |
+
+Latest preview bundle:
+`/srv/woodblock-share/output-images/chuck-mcp-thorough-m10-main-20260512-150141`.
+
+The result is no longer just the old pixel separator path: S5 optimizes a
+cumulative translucent stack through the forward renderer, uses low-pass target
+loss, edge-weighted reconstruction loss, layer-weighted TV, and a soft local
+support penalty for tiny islands. It still needs better brushed-zone topology
+before being treated as final CNC art.
+
 ## Current Limits
 
-The current optimizer is still primarily an RGB reconstruction objective through
-the forward renderer. It emits overlapping alpha impressions and cumulative pull
-artifacts, but broad underlayer structure, brushed-zone grouping, non-machinable
-geometry penalties, and island/disjointness penalties are not fully inside the
-loss yet. Treat outputs as testable v23 plans, not final CNC-ready artistic
-recommendations without review.
+The current optimizer emits overlapping alpha impressions and cumulative pull
+artifacts, but it still leans too hard toward reconstruction contours. Broad
+underlayer structure is partially encouraged, not solved; brushed-zone grouping
+and non-machinable geometry penalties need another pass before the SVGs should
+be treated as final carving geometry. Treat outputs as testable v23 plans, not
+final CNC-ready artistic recommendations without review.
 
 ## Documentation
 

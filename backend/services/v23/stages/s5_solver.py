@@ -33,6 +33,8 @@ from backend.services.v23.core import forward_render_jax
 _VALID_SOLVE_PROFILES = ("fast", "default", "thorough")
 _PROFILE_ITERS = {"fast": 60, "default": 180, "thorough": 400}
 _PROFILE_MAX_PIXELS = {"fast": 256_000, "default": 512_000, "thorough": 768_000}
+_LOWPASS_WINDOW = 8
+_SPECKLE_WINDOW = 9
 
 
 @dataclass(frozen=True)
@@ -56,21 +58,126 @@ def _sigmoid_box(alpha_raw: jnp.ndarray) -> jnp.ndarray:
     return jax.nn.sigmoid(alpha_raw)
 
 
+def _rgb_luminance(rgb: jnp.ndarray) -> jnp.ndarray:
+    return 0.299 * rgb[..., 0] + 0.587 * rgb[..., 1] + 0.114 * rgb[..., 2]
+
+
+def _avg_pool_rgb(rgb: jnp.ndarray, window: int = _LOWPASS_WINDOW) -> jnp.ndarray:
+    """Average-pool RGB with edge correction so non-multiple sizes stay unbiased."""
+    numerator = jax.lax.reduce_window(
+        rgb,
+        0.0,
+        jax.lax.add,
+        (window, window, 1),
+        (window, window, 1),
+        "SAME",
+    )
+    denominator = jax.lax.reduce_window(
+        jnp.ones_like(rgb),
+        0.0,
+        jax.lax.add,
+        (window, window, 1),
+        (window, window, 1),
+        "SAME",
+    )
+    return numerator / jnp.maximum(denominator, 1.0)
+
+
+def _avg_pool_alpha(alpha: jnp.ndarray, window: int = _SPECKLE_WINDOW) -> jnp.ndarray:
+    """Average-pool an ``(M, H, W)`` alpha stack per impression."""
+    pooled = jax.lax.reduce_window(
+        alpha,
+        0.0,
+        jax.lax.add,
+        (1, window, window),
+        (1, 1, 1),
+        "SAME",
+    )
+    return pooled / float(window * window)
+
+
+def _target_edge_weight(target_rgb: jnp.ndarray) -> jnp.ndarray:
+    """Detail-aware weights from target luminance gradients."""
+    lum = _rgb_luminance(target_rgb)
+    dx = jnp.pad(jnp.abs(lum[:, 1:] - lum[:, :-1]), ((0, 0), (0, 1)))
+    dy = jnp.pad(jnp.abs(lum[1:, :] - lum[:-1, :]), ((0, 1), (0, 0)))
+    edge = jnp.sqrt(dx * dx + dy * dy + 1e-8)
+    edge = edge / (jnp.max(edge) + 1e-6)
+    return 1.0 + 3.0 * edge[..., None]
+
+
+def _layered_alpha_tv(alpha: jnp.ndarray) -> jnp.ndarray:
+    """TV with more pressure on early underlayers than final key impressions."""
+    m = alpha.shape[0]
+    dx = jnp.abs(alpha[:, :, 1:] - alpha[:, :, :-1])
+    dy = jnp.abs(alpha[:, 1:, :] - alpha[:, :-1, :])
+    weights = jnp.linspace(1.55, 0.65, m, dtype=jnp.float32)
+    tv_x = jnp.mean(dx, axis=(1, 2))
+    tv_y = jnp.mean(dy, axis=(1, 2))
+    return jnp.mean(weights * (tv_x + tv_y))
+
+
+def _alpha_speckle(alpha: jnp.ndarray) -> jnp.ndarray:
+    """Soft proxy for tiny islands: penalize local peaks above their neighborhood."""
+    local = _avg_pool_alpha(alpha)
+    active = jax.nn.sigmoid((alpha - 0.25) * 16.0)
+    broad_support = jax.nn.relu(0.22 - local)
+    return jnp.mean(active * broad_support * broad_support)
+
+
+def _print_order(
+    alpha_stack: NDArray[np.float32],
+    pigment_idx: NDArray[np.int32],
+) -> NDArray[np.int64]:
+    """Return stable light-to-dark print order for alpha/pigment slots."""
+    pigment_rgb = forward_render_jax.PIGMENT_TABLE[pigment_idx]
+    luminance = (
+        0.299 * pigment_rgb[:, 0]
+        + 0.587 * pigment_rgb[:, 1]
+        + 0.114 * pigment_rgb[:, 2]
+    )
+    coverage = alpha_stack.mean(axis=(1, 2))
+    # Primary key: high luminance first. Secondary key: broad supports first.
+    return np.lexsort((-coverage, -luminance))
+
+
+def _reorder_for_printing(
+    alpha_stack: NDArray[np.float32],
+    pigment_idx: NDArray[np.int32],
+) -> tuple[NDArray[np.float32], NDArray[np.int32], NDArray[np.int64]]:
+    order = _print_order(alpha_stack, pigment_idx)
+    return alpha_stack[order], pigment_idx[order], order
+
+
 def _solver_loss(
     alpha_raw: jnp.ndarray,
     target_rgb: jnp.ndarray,
     pigment_idx: jnp.ndarray,
+    target_weight: jnp.ndarray,
+    target_lowpass: jnp.ndarray,
 ) -> jnp.ndarray:
-    """Sum-squared error in RGB space (matches inverse_solver_smoke).
-
-    ``jnp.sum`` keeps gradient magnitude large enough for L-BFGS line search;
-    8-term Oklab loss + sparsity + TV land in a follow-up commit when the
-    Tier-1 gate tightens the ΔE target.
-    """
+    """Print-aware differentiable objective for alpha stack refinement."""
     alpha = _sigmoid_box(alpha_raw)
     alpha_hwm = jnp.transpose(alpha, (1, 2, 0))  # (M, H, W) -> (H, W, M)
     rgb = forward_render_jax.forward_render(alpha_hwm, pigment_idx)
-    return jnp.sum((rgb - target_rgb) ** 2)
+    weighted_rgb = jnp.mean(target_weight * (rgb - target_rgb) ** 2)
+    lowpass = jnp.mean((_avg_pool_rgb(rgb) - target_lowpass) ** 2)
+    tv = _layered_alpha_tv(alpha)
+    speckle = _alpha_speckle(alpha)
+
+    selected = jnp.asarray(forward_render_jax.PIGMENT_TABLE, dtype=jnp.float32)[pigment_idx]
+    pigment_lum = 0.299 * selected[:, 0] + 0.587 * selected[:, 1] + 0.114 * selected[:, 2]
+    dark_strength = (1.0 - pigment_lum)[:, None, None]
+    target_lum = _rgb_luminance(target_rgb)[None, :, :]
+    dark_on_bright = jnp.mean(alpha * dark_strength * target_lum * target_lum)
+
+    return (
+        weighted_rgb
+        + 0.65 * lowpass
+        + 0.030 * tv
+        + 0.045 * speckle
+        + 0.015 * dark_on_bright
+    )
 
 
 def _alphas_to_impressions(
@@ -176,10 +283,15 @@ def run_s5_solver(
             f"alpha_init shape {alpha_init.shape} != expected ({m}, {orig_h}, {orig_w})"
         )
 
+    alpha_ordered, pigment_ordered, _order = _reorder_for_printing(
+        alpha_init.astype(np.float32),
+        pigment_idx.astype(np.int32),
+    )
+
     iters = _PROFILE_ITERS[solve_profile]
     target_solve, alpha_solve, optimized_shape, downsample_scale = _prepare_solver_grid(
         target_rgb,
-        alpha_init,
+        alpha_ordered,
         solve_profile=solve_profile,
     )
     # Convert α from [0,1] to logit space so unconstrained L-BFGS works
@@ -187,10 +299,12 @@ def run_s5_solver(
     init_raw = np.log(clipped / (1.0 - clipped)).astype(np.float32)
 
     target_j = jnp.asarray(target_solve, dtype=jnp.float32)
-    pigments_j = jnp.asarray(pigment_idx, dtype=jnp.int32)
+    pigments_j = jnp.asarray(pigment_ordered, dtype=jnp.int32)
+    target_weight = _target_edge_weight(target_j)
+    target_lowpass = _avg_pool_rgb(target_j)
 
     def loss_fn(a_raw):
-        return _solver_loss(a_raw, target_j, pigments_j)
+        return _solver_loss(a_raw, target_j, pigments_j, target_weight, target_lowpass)
 
     initial_loss = float(loss_fn(jnp.asarray(init_raw)))
     t0 = time.perf_counter()
@@ -206,7 +320,7 @@ def run_s5_solver(
     )
     final_loss = float(loss_fn(alpha_raw_final))
 
-    pigment_tuple = tuple(int(p) for p in pigment_idx.tolist())
+    pigment_tuple = tuple(int(p) for p in pigment_ordered.tolist())
     impressions = _alphas_to_impressions(alpha_stack, pigment_tuple)
     iters_used = (
         int(getattr(result.state, "iter_num", iters))

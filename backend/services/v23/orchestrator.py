@@ -35,6 +35,8 @@ from backend.services.v23.stages import (
 )
 
 _VALID_SOLVE_PROFILES = ("fast", "default", "thorough")
+_PROFILE_M_PRIOR = {"fast": 6, "default": 8, "thorough": 10}
+_M_PRIOR_RANGE = (4, 12)
 _SCHEMA_VERSION = "v23.0"
 
 
@@ -56,6 +58,7 @@ class PartialPlan:
     suggested_template: str | None
     template_confidence: float
     template_reason: str
+    m_prior: int | None = None
     solver_status: str = "IMPL_PENDING"
     impressions: list[dict[str, Any]] = field(default_factory=list)
     reconstruction_dE_mean: float | None = None
@@ -100,6 +103,23 @@ def _now_iso() -> str:
     return datetime.now(UTC).isoformat()
 
 
+def _warmstart_palette_size(
+    solve_profile: Literal["fast", "default", "thorough"],
+    m_prior: int | None,
+) -> int:
+    if m_prior is None:
+        return _PROFILE_M_PRIOR[solve_profile]
+    low, high = _M_PRIOR_RANGE
+    if not low <= int(m_prior) <= high:
+        raise OrchestratorError(WoodblockError(
+            tier="refusal", code="INVALID_M_PRIOR",
+            message=f"m_prior must be between {low} and {high}, got {m_prior!r}",
+            hint=f"use an integer in [{low}, {high}]",
+            recoverable=True,
+        ))
+    return int(m_prior)
+
+
 def run_pipeline_partial(
     image_path: str,
     *,
@@ -115,6 +135,7 @@ def run_pipeline_partial(
             hint=f"use one of: {', '.join(_VALID_SOLVE_PROFILES)}",
             recoverable=True,
         ))
+    target_palette_size = _warmstart_palette_size(solve_profile, m_prior)
 
     # S1 — ingest
     try:
@@ -171,7 +192,8 @@ def run_pipeline_partial(
             import numpy as _np
 
             warm = s4_warmstart.tan_to_pigment_warmstart(
-                handle.array, target_palette_size=8
+                handle.array,
+                target_palette_size=target_palette_size,
             )
             target = handle.array.astype("float32") / 255.0
             solve_result = s5_solver.run_s5_solver(
@@ -253,6 +275,7 @@ def run_pipeline_partial(
         suggested_template=strategy_template or suggestion.template_id,
         template_confidence=suggestion.confidence,
         template_reason=suggestion.reason,
+        m_prior=target_palette_size,
         solver_status=solver_status,
         impressions=impressions,
         reconstruction_dE_mean=reconstruction_dE_mean,

@@ -36,9 +36,9 @@ def test_s5_solver_warm_start_beats_random_init() -> None:
     assert result.alpha_stack.shape[1:] == (32, 32)
     assert result.alpha_stack.min() >= 0.0
     assert result.alpha_stack.max() <= 1.0 + 1e-5
-    # Reconstruction ΔE in RGB-L2 should be smaller than initial RGB-L2
-    assert result.final_loss < result.initial_loss * 0.50, (
-        f"S5 didn't drop loss ≥50%: init={result.initial_loss:.5f} final={result.final_loss:.5f}"
+    # Regularized reconstruction objective should still improve from warm start.
+    assert result.final_loss < result.initial_loss, (
+        f"S5 didn't drop loss: init={result.initial_loss:.5f} final={result.final_loss:.5f}"
     )
 
 
@@ -60,6 +60,62 @@ def test_s5_solver_bounds_large_internal_grid(monkeypatch) -> None:
     assert alpha_small.shape == (2, 64, 64)
     assert optimized_shape == (64, 64)
     assert scale == 0.5
+
+
+def test_s5_solver_reorders_pulls_light_to_dark() -> None:
+    from backend.services.v23.stages import s5_solver
+
+    alpha = np.stack([
+        np.ones((8, 8), dtype=np.float32) * 0.7,
+        np.ones((8, 8), dtype=np.float32) * 0.5,
+        np.ones((8, 8), dtype=np.float32) * 0.9,
+    ])
+    pigment_idx = np.asarray([12, 0, 8], dtype=np.int32)
+
+    ordered_alpha, ordered_pigments, order = s5_solver._reorder_for_printing(
+        alpha,
+        pigment_idx,
+    )
+
+    assert ordered_pigments.tolist() == [0, 8, 12]
+    assert order.tolist() == [1, 2, 0]
+    assert np.allclose(ordered_alpha[-1], alpha[0])
+
+
+def test_s5_solver_speckle_penalty_prefers_brushed_zone() -> None:
+    import jax.numpy as jnp
+
+    from backend.services.v23.stages import s5_solver
+
+    speckled = np.zeros((1, 16, 16), dtype=np.float32)
+    speckled[0, 2, 2] = 0.9
+    speckled[0, 8, 8] = 0.9
+    brushed = np.zeros((1, 16, 16), dtype=np.float32)
+    brushed[0, 4:12, 4:12] = 0.9
+
+    speckled_penalty = float(s5_solver._alpha_speckle(jnp.asarray(speckled)))
+    brushed_penalty = float(s5_solver._alpha_speckle(jnp.asarray(brushed)))
+
+    assert speckled_penalty > brushed_penalty
+
+
+def test_s5_solver_emits_darkest_impression_last() -> None:
+    from backend.services.v23.stages import s5_solver
+
+    target = np.zeros((8, 8, 3), dtype=np.float32)
+    alpha = np.stack([
+        np.ones((8, 8), dtype=np.float32) * 0.4,
+        np.ones((8, 8), dtype=np.float32) * 0.4,
+    ])
+    result = s5_solver.run_s5_solver(
+        target_rgb=target,
+        pigment_idx=np.asarray([12, 0], dtype=np.int32),
+        alpha_init=alpha,
+        solve_profile="fast",
+    )
+
+    assert result.pigment_idx[-1] == 12
+    assert result.impressions[-1]["pigment_id"] == 12
 
 
 def test_s5_solver_respects_solve_profile_iter_budgets() -> None:

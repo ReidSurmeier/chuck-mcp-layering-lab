@@ -161,6 +161,27 @@ def test_partial_pipeline_rejects_invalid_solve_profile(tmp_path: Path, monkeypa
     assert err.tier == "refusal"
 
 
+def test_partial_pipeline_resolves_profile_m_prior_defaults() -> None:
+    from backend.services.v23 import orchestrator
+
+    assert orchestrator._warmstart_palette_size("fast", None) == 6
+    assert orchestrator._warmstart_palette_size("default", None) == 8
+    assert orchestrator._warmstart_palette_size("thorough", None) == 10
+    assert orchestrator._warmstart_palette_size("fast", 12) == 12
+
+
+def test_partial_pipeline_rejects_invalid_m_prior(tmp_path: Path, monkeypatch) -> None:
+    _isolate(monkeypatch, tmp_path)
+    _mock_sam(monkeypatch)
+    from backend.services.v23.orchestrator import OrchestratorError, run_pipeline_partial
+
+    with pytest.raises(OrchestratorError) as ei:
+        run_pipeline_partial(str(_png_path(tmp_path)), solve_profile="fast", m_prior=13)
+    err = ei.value.error
+    assert err.code == "INVALID_M_PRIOR"
+    assert err.tier == "refusal"
+
+
 def test_partial_pipeline_propagates_ingest_errors(tmp_path: Path, monkeypatch) -> None:
     _isolate(monkeypatch, tmp_path)
     _mock_sam(monkeypatch)

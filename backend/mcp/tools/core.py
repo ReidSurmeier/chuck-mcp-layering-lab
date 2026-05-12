@@ -267,7 +267,7 @@ def propose_stack(
             "solve_profile": plan.solve_profile,
             "strategy_template": plan.suggested_template,
             "template_confidence": plan.template_confidence,
-            "m_prior": m_prior or 6,
+            "m_prior": plan.m_prior,
             "impression_count": len(plan.impressions),
             "dominant_family": plan.dominant_family,
             "family_areas": plan.family_areas,
