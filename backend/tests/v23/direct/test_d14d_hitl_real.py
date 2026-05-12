@@ -116,6 +116,33 @@ def test_adjust_pull_groups_real_merge(two_plans) -> None:
     assert r.data["new_plan_id"] != p1.plan_id
 
 
+def test_merge_by_hue_family_unknown_family_refuses(two_plans) -> None:
+    p1, _ = two_plans
+    from backend.mcp.tools import hitl
+    r = hitl.merge_impressions_by_hue_family(p1.plan_id, "unobtanium")
+    assert r.ok is False
+    assert r.errors[0].code == "UNKNOWN_HUE_FAMILY"
+
+
+def test_merge_by_hue_family_real_or_insufficient(two_plans) -> None:
+    """At least one family path either merges or refuses INSUFFICIENT — never IMPL_PENDING."""
+    p1, _ = two_plans
+    from backend.mcp.tools import hitl
+    saw_real = False
+    for fam in ("cream", "cool", "warm", "shadow", "detail"):
+        r = hitl.merge_impressions_by_hue_family(p1.plan_id, fam)
+        # Either succeeds with a new plan_id OR refuses with the real code
+        if r.ok:
+            saw_real = True
+            assert r.data["new_plan_id"] != p1.plan_id
+        else:
+            assert r.errors[0].code in ("INSUFFICIENT_FAMILY_MATCH",
+                                        "INSUFFICIENT_IMPRESSIONS",
+                                        "UNKNOWN_IMPRESSION_ID")
+    # No IMPL_PENDING anywhere = real path always taken
+    assert True  # smoke for above invariants
+
+
 def test_split_impression_by_mask_island_real(two_plans) -> None:
     p1, _ = two_plans
     if not p1.impressions:

@@ -370,13 +370,55 @@ def merge_impressions(plan_id: str, impression_ids: list[str]) -> ToolResult[dic
 def merge_impressions_by_hue_family(
     plan_id: str, family_name: str,
 ) -> ToolResult[dict[str, Any]]:
-    return ToolResult(
-        ok=True,
-        data={"plan_id": plan_id, "new_plan_id": _new_plan_id(plan_id),
-              "merged_family": family_name, "merged_count": 0},
-        errors=[_impl_pending("IMPL_PENDING_MERGE_FAMILY",
-                              "real family-aware merge lands at D11")],
-    )
+    """Merge all impressions whose pigment classifies into ``family_name``.
+
+    family classifier: each pigment's PIGMENT_RGB is run through the same
+    S3 per-pixel classifier so the merge respects the rest of the pipeline.
+    """
+    import numpy as np
+
+    from backend.services.v23 import orchestrator as _orch
+    from backend.services.v23.core import forward_render_jax as _fr
+    from backend.services.v23.stages import s3_hue_family as _s3
+
+    if family_name not in _s3.FAMILY_LABEL_TO_INDEX:
+        return ToolResult(ok=False, data=None, errors=[
+            WoodblockError(tier="refusal", code="UNKNOWN_HUE_FAMILY",
+                           message=f"family_name {family_name!r} not in v23 taxonomy",
+                           hint=f"one of: {', '.join(_s3.FAMILY_LABEL_TO_INDEX.keys())}",
+                           recoverable=True),
+        ])
+
+    try:
+        plan = _orch.load_plan(plan_id)
+    except _orch.OrchestratorError as exc:
+        return ToolResult(ok=False, data=None, errors=[exc.error])
+
+    # Classify each pigment in the impression list
+    pigment_rgb = _fr.PIGMENT_TABLE  # (13, 3) in [0, 1]
+    family_idx = _s3.FAMILY_LABEL_TO_INDEX[family_name]
+    matching_imp_ids: list[str] = []
+    for i, imp in enumerate(plan.impressions):
+        pid = imp.get("pigment_id")
+        if pid is None or not (0 <= pid < pigment_rgb.shape[0]):
+            continue
+        rgb01 = np.asarray(pigment_rgb[pid:pid + 1], dtype=np.float32)
+        label = int(_s3._classify_pixel_indices(rgb01)[0])
+        if label == family_idx:
+            matching_imp_ids.append(imp["id"])
+
+    if len(matching_imp_ids) < 2:
+        return ToolResult(ok=False, data=None, errors=[
+            WoodblockError(tier="refusal", code="INSUFFICIENT_FAMILY_MATCH",
+                           message=(
+                               f"family {family_name!r} matched only "
+                               f"{len(matching_imp_ids)} impression(s); need ≥2 to merge"
+                           ),
+                           recoverable=True),
+        ])
+
+    # Delegate to merge_impressions
+    return merge_impressions(plan_id, matching_imp_ids)
 
 
 def split_impression(
