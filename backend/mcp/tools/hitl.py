@@ -8,6 +8,27 @@ from backend.mcp.errors import ToolResult, WoodblockError
 
 _PIN_ACTIONS = ("force", "forbid", "merge")
 
+_PIGMENT_NAMES = [
+    "cadmium_yellow", "hansa_yellow", "cadmium_orange", "cadmium_red",
+    "quinacridone_magenta", "cobalt_violet", "ultramarine_blue",
+    "cobalt_blue", "viridian_green", "forest_green",
+    "burnt_sienna", "raw_umber", "ivory_black",
+]
+
+
+def _pigment_name_to_id(name: str) -> int | None:
+    try:
+        return _PIGMENT_NAMES.index(name)
+    except ValueError:
+        return None
+
+
+def _bbox_from_region(region: dict) -> tuple[int, int, int, int] | None:
+    bbox = region.get("bbox") if isinstance(region, dict) else None
+    if not bbox or len(bbox) != 4:
+        return None
+    return tuple(int(v) for v in bbox)  # type: ignore[return-value]
+
 
 def _impl_pending(code: str, hint: str) -> WoodblockError:
     return WoodblockError(
@@ -27,18 +48,139 @@ def pin_region(
     action: Literal["force", "forbid", "merge"],
     pigment_id: str | None = None,
 ) -> ToolResult[dict[str, Any]]:
+    """Pin a region with a pigment constraint — applies directly to alpha_stack.
+
+    ``force``: set alpha to 0.9 for pigment in region across all matching impressions.
+    ``forbid``: zero alpha for pigment in region.
+    ``merge``: reassign region's pixels to the dominant impression by mean alpha.
+
+    No solver re-run — direct alpha edit. For solver-loop-aware pin (with cost-aware
+    repropagation), use ``alternative_stacks`` with constraints in a future step.
+    """
     if action not in _PIN_ACTIONS:
         return ToolResult(ok=False, data=None, errors=[
             WoodblockError(tier="refusal", code="INVALID_PIN_ACTION",
                            message=f"action must be one of {_PIN_ACTIONS}, got {action!r}",
                            recoverable=True),
         ])
-    return ToolResult(
-        ok=True,
-        data={"plan_id": plan_id, "new_plan_id": _new_plan_id(plan_id),
-              "action": action, "region": region, "pigment_id": pigment_id},
-        errors=[_impl_pending("IMPL_PENDING_PIN", "real pin/re-solve loop lands at D11")],
+
+    import json
+    from dataclasses import asdict, replace
+    from pathlib import Path
+
+    import numpy as np
+
+    from backend.services.v23 import orchestrator as _orch
+
+    try:
+        plan = _orch.load_plan(plan_id)
+    except _orch.OrchestratorError as exc:
+        return ToolResult(ok=False, data=None, errors=[exc.error])
+
+    if plan.alpha_stack_path is None or not Path(plan.alpha_stack_path).is_file():
+        return ToolResult(ok=False, data=None, errors=[
+            WoodblockError(tier="refusal", code="NO_SOLVER_OUTPUT",
+                           message="plan has no alpha_stack — solver did not run",
+                           recoverable=True),
+        ])
+
+    bbox = _bbox_from_region(region)
+    if bbox is None:
+        return ToolResult(ok=False, data=None, errors=[
+            WoodblockError(tier="refusal", code="INVALID_REGION",
+                           message="region must contain bbox=[x0, y0, x1, y1]",
+                           recoverable=True),
+        ])
+    x0, y0, x1, y1 = bbox
+    x0, y0 = max(0, x0), max(0, y0)
+    x1 = min(plan.width, x1)
+    y1 = min(plan.height, y1)
+    if x1 <= x0 or y1 <= y0:
+        return ToolResult(ok=False, data=None, errors=[
+            WoodblockError(tier="refusal", code="EMPTY_REGION",
+                           message=f"region {bbox} is empty after clamping to image bounds",
+                           recoverable=True),
+        ])
+
+    pid: int | None = None
+    if pigment_id is not None:
+        pid = _pigment_name_to_id(pigment_id)
+        if pid is None:
+            return ToolResult(ok=False, data=None, errors=[
+                WoodblockError(tier="refusal", code="UNKNOWN_PIGMENT",
+                               message=f"unknown pigment_id {pigment_id!r}",
+                               hint=f"one of: {', '.join(_PIGMENT_NAMES)}",
+                               recoverable=True),
+            ])
+
+    alpha = np.load(plan.alpha_stack_path).copy()  # (M, H, W)
+    pigment_arr = np.asarray(plan.pigment_idx, dtype=np.int32)
+
+    matching_impressions: list[int] = []
+    if pid is not None:
+        matching_impressions = [int(i) for i, p in enumerate(pigment_arr) if int(p) == pid]
+    affected = 0
+
+    if action == "forbid":
+        for i in matching_impressions:
+            alpha[i, y0:y1, x0:x1] = 0.0
+            affected += 1
+    elif action == "force":
+        for i in matching_impressions:
+            alpha[i, y0:y1, x0:x1] = 0.9
+            affected += 1
+        # Also clear other pigments' alpha in region so the forced pigment dominates
+        for i in range(alpha.shape[0]):
+            if i not in matching_impressions:
+                alpha[i, y0:y1, x0:x1] *= 0.3
+    elif action == "merge":
+        # Find dominant impression in region by mean alpha, push all into it
+        region_means = alpha[:, y0:y1, x0:x1].mean(axis=(1, 2))
+        if region_means.sum() == 0:
+            return ToolResult(ok=False, data=None, errors=[
+                WoodblockError(tier="refusal", code="EMPTY_REGION_ALPHA",
+                               message="all impressions are zero in region — nothing to merge",
+                               recoverable=True),
+            ])
+        dominant_imp = int(np.argmax(region_means))
+        for i in range(alpha.shape[0]):
+            if i != dominant_imp:
+                alpha[i, y0:y1, x0:x1] = 0.0
+        alpha[dominant_imp, y0:y1, x0:x1] = alpha[dominant_imp, y0:y1, x0:x1].clip(0.3, 1.0)
+        affected = 1
+
+    # Persist new plan
+    new_plan_id = _new_plan_id(plan_id)
+    new_plan_dir = _orch._plan_dir(plan.session_id, new_plan_id)
+    new_alpha_path = new_plan_dir / "alpha_stack.npy"
+    new_pigment_path = new_plan_dir / "pigment_idx.npy"
+    np.save(new_alpha_path, alpha)
+    np.save(new_pigment_path, pigment_arr)
+    new_state_path = None
+    if plan.state_stack_path and Path(plan.state_stack_path).is_file():
+        new_state_path = new_plan_dir / "state_stack.npy"
+        new_state_path.write_bytes(Path(plan.state_stack_path).read_bytes())
+    old_target = Path(plan.alpha_stack_path).parent / "target.npy"
+    if old_target.is_file():
+        (new_plan_dir / "target.npy").write_bytes(old_target.read_bytes())
+
+    new_plan = replace(
+        plan,
+        plan_id=new_plan_id,
+        alpha_stack_path=str(new_alpha_path),
+        state_stack_path=str(new_state_path) if new_state_path else plan.state_stack_path,
+        created_at=_orch._now_iso(),
     )
+    (new_plan_dir / "plan.json").write_text(json.dumps(asdict(new_plan), indent=2, sort_keys=True))
+
+    return ToolResult(ok=True, data={
+        "plan_id": plan_id,
+        "new_plan_id": new_plan_id,
+        "action": action,
+        "region": {"bbox": [x0, y0, x1, y1]},
+        "pigment_id": pigment_id,
+        "impressions_affected": affected,
+    })
 
 
 def alternative_stacks(plan_id: str, n: int = 3) -> ToolResult[dict[str, Any]]:
@@ -399,12 +541,123 @@ def split_impression(
 
 
 def adjust_pull_groups(plan_id: str, hints: dict[str, Any]) -> ToolResult[dict[str, Any]]:
-    return ToolResult(
-        ok=True,
-        data={"plan_id": plan_id, "new_plan_id": _new_plan_id(plan_id), "hints": hints},
-        errors=[_impl_pending("IMPL_PENDING_ADJUST_PULLS",
-                              "real DSATUR re-pack with constraints lands at D11")],
+    """Apply pull-group hints to a persisted plan — direct metadata mutation.
+
+    Supported hints:
+    - ``merge_pull_groups: [int, int]`` — combine two pull groups by index
+    - ``rename_pull_group: {"index": int, "name": str}`` — rename one group
+    - ``reorder_pull_groups: [int, ...]`` — reorder groups by permutation
+    """
+    import json
+    from dataclasses import asdict, replace
+    from pathlib import Path
+
+    from backend.services.v23 import orchestrator as _orch
+
+    try:
+        plan = _orch.load_plan(plan_id)
+    except _orch.OrchestratorError as exc:
+        return ToolResult(ok=False, data=None, errors=[exc.error])
+
+    pull_groups = [dict(g) for g in plan.pull_groups]
+    n = len(pull_groups)
+    applied: list[str] = []
+
+    if "merge_pull_groups" in hints:
+        idxs = hints["merge_pull_groups"]
+        if not (isinstance(idxs, list) and len(idxs) == 2
+                and all(isinstance(i, int) for i in idxs)
+                and all(0 <= i < n for i in idxs) and idxs[0] != idxs[1]):
+            return ToolResult(ok=False, data=None, errors=[
+                WoodblockError(tier="refusal", code="INVALID_MERGE_HINT",
+                               message=f"merge_pull_groups must be [i, j] with 0<=i,j<{n}, i!=j",
+                               recoverable=True),
+            ])
+        i, j = sorted(idxs)
+        g_i, g_j = pull_groups[i], pull_groups[j]
+        merged_impressions = list(g_i.get("impression_ids", [])) + list(g_j.get("impression_ids", []))
+        merged = {
+            **g_i,
+            "impression_ids": merged_impressions,
+            "name": f"{g_i.get('name', f'pull_{i}')}+{g_j.get('name', f'pull_{j}')}",
+        }
+        pull_groups = [merged] + [g for k, g in enumerate(pull_groups) if k not in (i, j)]
+        applied.append(f"merged groups {i}+{j}")
+
+    if "rename_pull_group" in hints:
+        ren = hints["rename_pull_group"]
+        if not (isinstance(ren, dict) and "index" in ren and "name" in ren):
+            return ToolResult(ok=False, data=None, errors=[
+                WoodblockError(tier="refusal", code="INVALID_RENAME_HINT",
+                               message="rename_pull_group must be {'index': int, 'name': str}",
+                               recoverable=True),
+            ])
+        idx = int(ren["index"])
+        if not 0 <= idx < len(pull_groups):
+            return ToolResult(ok=False, data=None, errors=[
+                WoodblockError(tier="refusal", code="OUT_OF_BOUNDS",
+                               message=f"rename index {idx} out of range [0, {len(pull_groups)})",
+                               recoverable=True),
+            ])
+        pull_groups[idx] = {**pull_groups[idx], "name": str(ren["name"])}
+        applied.append(f"renamed group {idx}")
+
+    if "reorder_pull_groups" in hints:
+        perm = hints["reorder_pull_groups"]
+        if not (isinstance(perm, list) and len(perm) == len(pull_groups)
+                and sorted(perm) == list(range(len(pull_groups)))):
+            return ToolResult(ok=False, data=None, errors=[
+                WoodblockError(tier="refusal", code="INVALID_PERMUTATION",
+                               message=f"reorder must be a permutation of [0..{len(pull_groups)-1}]",
+                               recoverable=True),
+            ])
+        pull_groups = [pull_groups[i] for i in perm]
+        applied.append("reordered groups")
+
+    if not applied:
+        return ToolResult(ok=False, data=None, errors=[
+            WoodblockError(tier="refusal", code="NO_HINT_APPLIED",
+                           message=f"no recognised hint key in {list(hints.keys())}",
+                           hint="use merge_pull_groups, rename_pull_group, or reorder_pull_groups",
+                           recoverable=True),
+        ])
+
+    new_plan_id = _new_plan_id(plan_id)
+    new_plan_dir = _orch._plan_dir(plan.session_id, new_plan_id)
+    # Copy persisted .npy files
+    for fname in ("alpha_stack.npy", "state_stack.npy", "pigment_idx.npy", "target.npy"):
+        src_path = None
+        if fname == "alpha_stack.npy" and plan.alpha_stack_path:
+            src_path = Path(plan.alpha_stack_path)
+        elif fname == "state_stack.npy" and plan.state_stack_path:
+            src_path = Path(plan.state_stack_path)
+        elif plan.alpha_stack_path:
+            src_path = Path(plan.alpha_stack_path).parent / fname
+        if src_path and src_path.is_file():
+            (new_plan_dir / fname).write_bytes(src_path.read_bytes())
+
+    new_plan = replace(
+        plan,
+        plan_id=new_plan_id,
+        pull_groups=pull_groups,
+        alpha_stack_path=(
+            str(new_plan_dir / "alpha_stack.npy")
+            if (new_plan_dir / "alpha_stack.npy").is_file() else plan.alpha_stack_path
+        ),
+        state_stack_path=(
+            str(new_plan_dir / "state_stack.npy")
+            if (new_plan_dir / "state_stack.npy").is_file() else plan.state_stack_path
+        ),
+        created_at=_orch._now_iso(),
     )
+    (new_plan_dir / "plan.json").write_text(json.dumps(asdict(new_plan), indent=2, sort_keys=True))
+
+    return ToolResult(ok=True, data={
+        "plan_id": plan_id,
+        "new_plan_id": new_plan_id,
+        "hints_applied": applied,
+        "new_pull_group_count": len(pull_groups),
+    })
 
 
 def simplify_masks_for_carving(plan_id: str) -> ToolResult[dict[str, Any]]:

@@ -16,11 +16,11 @@ def _isolate(monkeypatch, tmp_path: Path) -> None:
 
 # Tier 1 — HITL (8 tools)
 
-def test_pin_region_force_returns_new_plan_id() -> None:
+def test_pin_region_unknown_plan_refuses(tmp_path: Path, monkeypatch) -> None:
+    _isolate(monkeypatch, tmp_path)
     from backend.mcp.tools import hitl
     r = hitl.pin_region("plan_a", {"bbox": [0, 0, 10, 10]}, "force", pigment_id="cadmium_yellow")
-    assert r.ok is True
-    assert r.data["new_plan_id"] != "plan_a"
+    assert r.ok is False  # plan unknown -> refusal
 
 
 def test_pin_region_rejects_unknown_action() -> None:

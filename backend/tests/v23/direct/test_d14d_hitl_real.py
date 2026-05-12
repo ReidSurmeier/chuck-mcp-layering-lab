@@ -58,6 +58,64 @@ def test_compare_plans_unknown_refuses(tmp_path, monkeypatch) -> None:
     assert r.ok is False
 
 
+def test_pin_region_forbid_real(two_plans) -> None:
+    p1, _ = two_plans
+    if not p1.impressions:
+        pytest.skip("solver produced 0 impressions on this seed")
+    pid = p1.impressions[0]["pigment_id"]
+    pigment_names = ["cadmium_yellow", "hansa_yellow", "cadmium_orange", "cadmium_red",
+                     "quinacridone_magenta", "cobalt_violet", "ultramarine_blue",
+                     "cobalt_blue", "viridian_green", "forest_green",
+                     "burnt_sienna", "raw_umber", "ivory_black"]
+    pigment_name = pigment_names[pid]
+    from backend.mcp.tools import hitl
+    r = hitl.pin_region(p1.plan_id, {"bbox": [0, 0, 8, 8]}, "forbid", pigment_id=pigment_name)
+    assert r.ok is True, r.errors
+    assert r.data["new_plan_id"] != p1.plan_id
+    # New plan must have ZERO alpha in that region for that pigment
+    import numpy as np
+    from backend.services.v23 import orchestrator as _orch
+    new_plan = _orch.load_plan(r.data["new_plan_id"])
+    new_alpha = np.load(new_plan.alpha_stack_path)
+    # Find impressions with that pigment
+    for i, p_idx in enumerate(new_plan.pigment_idx):
+        if p_idx == pid:
+            assert (new_alpha[i, 0:8, 0:8] == 0).all(), f"forbid failed for impression {i}"
+
+
+def test_pin_region_force_real(two_plans) -> None:
+    p1, _ = two_plans
+    if not p1.impressions:
+        pytest.skip("solver produced 0 impressions on this seed")
+    pid = p1.impressions[0]["pigment_id"]
+    pigment_names = ["cadmium_yellow", "hansa_yellow", "cadmium_orange", "cadmium_red",
+                     "quinacridone_magenta", "cobalt_violet", "ultramarine_blue",
+                     "cobalt_blue", "viridian_green", "forest_green",
+                     "burnt_sienna", "raw_umber", "ivory_black"]
+    pigment_name = pigment_names[pid]
+    from backend.mcp.tools import hitl
+    r = hitl.pin_region(p1.plan_id, {"bbox": [0, 0, 8, 8]}, "force", pigment_id=pigment_name)
+    assert r.ok is True, r.errors
+
+
+def test_pin_region_unknown_pigment_refuses(two_plans) -> None:
+    p1, _ = two_plans
+    from backend.mcp.tools import hitl
+    r = hitl.pin_region(p1.plan_id, {"bbox": [0, 0, 8, 8]}, "forbid", pigment_id="unobtanium")
+    assert r.ok is False
+    assert r.errors[0].code == "UNKNOWN_PIGMENT"
+
+
+def test_adjust_pull_groups_real_merge(two_plans) -> None:
+    p1, _ = two_plans
+    if p1.block_count < 2:
+        pytest.skip("plan has <2 blocks")
+    from backend.mcp.tools import hitl
+    r = hitl.adjust_pull_groups(p1.plan_id, {"merge_pull_groups": [0, 1]})
+    assert r.ok is True, r.errors
+    assert r.data["new_plan_id"] != p1.plan_id
+
+
 def test_split_impression_by_mask_island_real(two_plans) -> None:
     p1, _ = two_plans
     if not p1.impressions:
