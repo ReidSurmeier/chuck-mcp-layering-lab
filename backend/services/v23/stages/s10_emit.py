@@ -37,26 +37,29 @@ class EmitError(Exception):
 
 
 def _render_composite(plan: _orch.PartialPlan) -> bytes:
-    """Render composite preview from persisted state_stack + alpha."""
-    if not plan.impressions or plan.state_stack_path is None:
+    """Render composite preview from persisted alpha_stack (per-pixel accurate)."""
+    if not plan.impressions:
         # No solver result — emit a blank washi-coloured preview
         arr = np.full((plan.height, plan.width, 3), [246, 241, 227], dtype=np.uint8)
-        buf = _np_to_png_bytes(arr)
-        return buf
-    # Read state_stack to know which pixels are "live" — but for composite
-    # we actually need the original alpha_stack. The orchestrator only
-    # persisted state_stack.npy; alpha lives in the impressions list.
-    # For day-1 we re-render a coarse composite using uniform alphas per
-    # impression at their mean_alpha values — accurate enough for the
-    # preview pending the alpha_stack persistence in D11.f.
-    pigment_idx = np.array([imp["pigment_id"] for imp in plan.impressions], dtype=np.int32)
-    m = len(plan.impressions)
-    h, w = plan.height, plan.width
-    alpha_uniform = np.zeros((h, w, m), dtype=np.float32)
-    for i, imp in enumerate(plan.impressions):
-        alpha_uniform[..., i] = float(imp.get("mean_alpha", 0.0))
+        return _np_to_png_bytes(arr)
+
+    # Prefer per-pixel alpha_stack persisted by S5; fall back to mean-α if absent.
+    if plan.alpha_stack_path and Path(plan.alpha_stack_path).is_file():
+        alpha_stack = np.load(plan.alpha_stack_path)  # (M, H, W)
+        # forward_render_jax expects (H, W, M)
+        alpha_hwm = np.transpose(alpha_stack, (1, 2, 0))
+        pigment_idx = np.array(plan.pigment_idx, dtype=np.int32)
+    else:
+        m = len(plan.impressions)
+        alpha_hwm = np.zeros((plan.height, plan.width, m), dtype=np.float32)
+        for i, imp in enumerate(plan.impressions):
+            alpha_hwm[..., i] = float(imp.get("mean_alpha", 0.0))
+        pigment_idx = np.array(
+            [imp["pigment_id"] for imp in plan.impressions], dtype=np.int32
+        )
+
     rgb = np.asarray(forward_render_jax.forward_render(
-        jnp.asarray(alpha_uniform, dtype=jnp.float32),
+        jnp.asarray(alpha_hwm, dtype=jnp.float32),
         jnp.asarray(pigment_idx, dtype=jnp.int32),
     ))
     arr = (np.clip(rgb, 0.0, 1.0) * 255.0).astype(np.uint8)

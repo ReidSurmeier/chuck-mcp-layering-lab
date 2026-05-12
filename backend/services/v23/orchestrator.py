@@ -66,6 +66,8 @@ class PartialPlan:
     impression_to_face: dict[str, str] = field(default_factory=dict)
     pull_groups: list[dict[str, Any]] = field(default_factory=list)
     state_stack_path: str | None = None
+    alpha_stack_path: str | None = None
+    pigment_idx: list[int] = field(default_factory=list)
     created_at: str = ""
 
 
@@ -157,6 +159,8 @@ def run_pipeline_partial(
     impression_to_face: dict[str, str] = {}
     pull_groups: list[dict[str, Any]] = []
     state_stack_path: str | None = None
+    alpha_stack_path: str | None = None
+    pigment_idx_list: list[int] = []
     if os.environ.get("WOODBLOCK_DISABLE_SOLVER") != "1":
         try:
             import numpy as _np
@@ -186,11 +190,19 @@ def run_pipeline_partial(
             state_stack = s6_three_state_mask.classify_three_state(solve_result.alpha_stack)
             state_summary = s6_three_state_mask.summarise_states(state_stack)
 
-            # Persist state_stack as .npy under the plan dir for downstream tools
+            # Persist state_stack + alpha_stack + pigment_idx as .npy under the
+            # plan dir so downstream tools render per-pixel accurate composites.
             plan_id_preview = f"plan_{int(time.time() * 1000)}_{handle.image_sha256[:8]}"
-            state_path = _plan_dir(handle.session_id, plan_id_preview) / "state_stack.npy"
+            pdir = _plan_dir(handle.session_id, plan_id_preview)
+            state_path = pdir / "state_stack.npy"
+            alpha_path = pdir / "alpha_stack.npy"
+            pigment_path = pdir / "pigment_idx.npy"
             _np.save(state_path, state_stack)
+            _np.save(alpha_path, solve_result.alpha_stack)
+            _np.save(pigment_path, _np.asarray(solve_result.pigment_idx, dtype="int32"))
             state_stack_path = str(state_path)
+            alpha_stack_path = str(alpha_path)
+            pigment_idx_list = list(solve_result.pigment_idx)
 
             # S7 — DSATUR-style block packing post-solve
             pack = s7_block_pack.pack_blocks(solve_result.alpha_stack)
@@ -228,6 +240,8 @@ def run_pipeline_partial(
         impression_to_face=impression_to_face,
         pull_groups=pull_groups,
         state_stack_path=state_stack_path,
+        alpha_stack_path=alpha_stack_path,
+        pigment_idx=pigment_idx_list,
         created_at=_now_iso(),
     )
     _persist_plan(plan)
