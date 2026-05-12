@@ -60,13 +60,46 @@ def generate_stack_candidates(plan_id: str, n: int = 3) -> ToolResult[dict[str, 
 
 
 def compare_plans(plan_a: str, plan_b: str) -> ToolResult[dict[str, Any]]:
-    return ToolResult(
-        ok=True,
-        data={"plan_a": plan_a, "plan_b": plan_b,
-              "dE_delta_mean": 0.0, "dE_delta_p95": 0.0,
-              "impression_diff": [], "composite_diff_path": None},
-        errors=[_impl_pending("IMPL_PENDING_COMPARE", "real diff lands at D11")],
-    )
+    """Diff two persisted plans — dE deltas, impression-set diff, block-count delta."""
+    from backend.services.v23 import orchestrator as _orch
+
+    try:
+        pa = _orch.load_plan(plan_a)
+    except _orch.OrchestratorError as exc:
+        return ToolResult(ok=False, data=None, errors=[exc.error])
+    try:
+        pb = _orch.load_plan(plan_b)
+    except _orch.OrchestratorError as exc:
+        return ToolResult(ok=False, data=None, errors=[exc.error])
+
+    def _safe(x: float | None) -> float:
+        return float(x) if x is not None else 0.0
+
+    dE_delta_mean = _safe(pb.reconstruction_dE_mean) - _safe(pa.reconstruction_dE_mean)
+    dE_delta_p95 = _safe(pb.reconstruction_dE_p95) - _safe(pa.reconstruction_dE_p95)
+
+    pigments_a = {int(p) for p in pa.pigment_idx}
+    pigments_b = {int(p) for p in pb.pigment_idx}
+    pigments_only_a = sorted(pigments_a - pigments_b)
+    pigments_only_b = sorted(pigments_b - pigments_a)
+
+    return ToolResult(ok=True, data={
+        "plan_a": plan_a, "plan_b": plan_b,
+        "dE_delta_mean": round(dE_delta_mean, 4),
+        "dE_delta_p95": round(dE_delta_p95, 4),
+        "dE_mean_a": pa.reconstruction_dE_mean,
+        "dE_mean_b": pb.reconstruction_dE_mean,
+        "impression_count_a": len(pa.impressions),
+        "impression_count_b": len(pb.impressions),
+        "block_count_a": pa.block_count,
+        "block_count_b": pb.block_count,
+        "pigments_only_in_a": pigments_only_a,
+        "pigments_only_in_b": pigments_only_b,
+        "impression_diff": list({int(p) for p in pa.pigment_idx} ^ {int(p) for p in pb.pigment_idx}),
+        "composite_diff_path": None,
+        "solve_profile_a": pa.solve_profile,
+        "solve_profile_b": pb.solve_profile,
+    })
 
 
 def compare_alternate_recipes(plan_a: str, plan_b: str) -> ToolResult[dict[str, Any]]:
@@ -75,18 +108,121 @@ def compare_alternate_recipes(plan_a: str, plan_b: str) -> ToolResult[dict[str, 
 
 
 def merge_impressions(plan_id: str, impression_ids: list[str]) -> ToolResult[dict[str, Any]]:
+    """Merge N impressions into one — clip-sum alpha, pick dominant pigment, persist new plan."""
     if len(impression_ids) < 2:
         return ToolResult(ok=False, data=None, errors=[
             WoodblockError(tier="refusal", code="INSUFFICIENT_IMPRESSIONS",
                            message="merge_impressions requires >= 2 impression_ids",
                            recoverable=True),
         ])
-    return ToolResult(
-        ok=True,
-        data={"plan_id": plan_id, "new_plan_id": _new_plan_id(plan_id),
-              "merged_count": len(impression_ids)},
-        errors=[_impl_pending("IMPL_PENDING_MERGE", "real merge lands at D11")],
+
+    import json
+    from dataclasses import asdict, replace
+    from pathlib import Path
+
+    import numpy as np
+
+    from backend.services.v23 import orchestrator as _orch
+
+    try:
+        plan = _orch.load_plan(plan_id)
+    except _orch.OrchestratorError as exc:
+        return ToolResult(ok=False, data=None, errors=[exc.error])
+
+    if plan.alpha_stack_path is None or not Path(plan.alpha_stack_path).is_file():
+        return ToolResult(ok=False, data=None, errors=[
+            WoodblockError(tier="refusal", code="NO_SOLVER_OUTPUT",
+                           message="plan has no alpha_stack to merge against",
+                           recoverable=True),
+        ])
+
+    id_to_idx = {imp["id"]: i for i, imp in enumerate(plan.impressions)}
+    indices: list[int] = []
+    for iid in impression_ids:
+        if iid not in id_to_idx:
+            return ToolResult(ok=False, data=None, errors=[
+                WoodblockError(tier="refusal", code="UNKNOWN_IMPRESSION_ID",
+                               message=f"impression_id {iid!r} not in plan {plan_id}",
+                               recoverable=True),
+            ])
+        indices.append(id_to_idx[iid])
+
+    alpha_stack = np.load(plan.alpha_stack_path)  # (M, H, W)
+    state_stack = np.load(plan.state_stack_path) if plan.state_stack_path else None
+    pigment_idx = np.asarray(plan.pigment_idx, dtype=np.int32)
+
+    keep_idx = indices[0]
+    drop_idx = sorted(indices[1:], reverse=True)
+
+    # Clip-sum alpha planes
+    merged_alpha = alpha_stack[indices].sum(axis=0).clip(0.0, 1.0)
+
+    # Dominant pigment = the merged-impression pigment with highest mean alpha
+    mean_alphas = alpha_stack[indices].mean(axis=(1, 2))
+    dominant_local = int(np.argmax(mean_alphas))
+    dominant_pigment = int(pigment_idx[indices[dominant_local]])
+
+    new_alpha = alpha_stack.copy()
+    new_alpha[keep_idx] = merged_alpha
+    new_alpha = np.delete(new_alpha, drop_idx, axis=0)
+    new_pigment = pigment_idx.copy()
+    new_pigment[keep_idx] = dominant_pigment
+    new_pigment = np.delete(new_pigment, drop_idx, axis=0)
+    new_state = (
+        np.delete(state_stack, drop_idx, axis=0) if state_stack is not None else None
     )
+
+    # Persist as a new plan dir
+    new_plan_id = _new_plan_id(plan_id)
+    new_plan_dir = _orch._plan_dir(plan.session_id, new_plan_id)
+    new_alpha_path = new_plan_dir / "alpha_stack.npy"
+    new_pigment_path = new_plan_dir / "pigment_idx.npy"
+    np.save(new_alpha_path, new_alpha)
+    np.save(new_pigment_path, new_pigment)
+    new_state_path: Path | None = None
+    if new_state is not None:
+        new_state_path = new_plan_dir / "state_stack.npy"
+        np.save(new_state_path, new_state)
+    # Copy target.npy for downstream dE_at
+    if plan.alpha_stack_path:
+        old_target = Path(plan.alpha_stack_path).parent / "target.npy"
+        if old_target.is_file():
+            (new_plan_dir / "target.npy").write_bytes(old_target.read_bytes())
+
+    # Rebuild impressions list
+    merged_imp = dict(plan.impressions[keep_idx])
+    merged_imp["pigment_id"] = dominant_pigment
+    merged_imp["id"] = f"{merged_imp.get('id', 'imp')}_merged"
+    merged_imp["mean_alpha"] = float(merged_alpha.mean())
+    merged_imp["coverage_pct"] = float((merged_alpha > 0.05).mean() * 100.0)
+    new_impressions = [
+        merged_imp if i == keep_idx else imp
+        for i, imp in enumerate(plan.impressions)
+    ]
+    for di in drop_idx:
+        new_impressions.pop(di)
+    for i, imp in enumerate(new_impressions):
+        imp["order_step"] = i
+
+    new_plan = replace(
+        plan,
+        plan_id=new_plan_id,
+        impressions=new_impressions,
+        alpha_stack_path=str(new_alpha_path),
+        state_stack_path=str(new_state_path) if new_state_path else plan.state_stack_path,
+        pigment_idx=list(int(p) for p in new_pigment),
+        created_at=_orch._now_iso(),
+    )
+    plan_file = new_plan_dir / "plan.json"
+    plan_file.write_text(json.dumps(asdict(new_plan), indent=2, sort_keys=True))
+
+    return ToolResult(ok=True, data={
+        "plan_id": plan_id,
+        "new_plan_id": new_plan_id,
+        "merged_count": len(impression_ids),
+        "merged_impression_id": merged_imp["id"],
+        "dominant_pigment_id": dominant_pigment,
+    })
 
 
 def merge_impressions_by_hue_family(

@@ -52,11 +52,11 @@ def test_generate_stack_candidates_is_alias() -> None:
     assert set(a.data.keys()) == set(b.data.keys())
 
 
-def test_compare_plans_returns_dE_delta() -> None:
+def test_compare_plans_unknown_refuses(tmp_path: Path, monkeypatch) -> None:
+    _isolate(monkeypatch, tmp_path)
     from backend.mcp.tools import hitl
     r = hitl.compare_plans("plan_a", "plan_b")
-    assert r.ok is True
-    assert "dE_delta_mean" in r.data
+    assert r.ok is False  # both plans unknown -> refusal
 
 
 def test_merge_impressions_requires_two() -> None:
@@ -65,11 +65,11 @@ def test_merge_impressions_requires_two() -> None:
     assert r.ok is False
 
 
-def test_merge_impressions_two_ok() -> None:
+def test_merge_impressions_unknown_plan_refuses(tmp_path: Path, monkeypatch) -> None:
+    _isolate(monkeypatch, tmp_path)
     from backend.mcp.tools import hitl
     r = hitl.merge_impressions("plan_a", ["imp_001", "imp_002"])
-    assert r.ok is True
-    assert r.data["merged_count"] == 2
+    assert r.ok is False  # plan unknown -> refusal
 
 
 def test_split_impression_rejects_bad_mode() -> None:
