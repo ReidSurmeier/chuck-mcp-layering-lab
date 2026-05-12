@@ -12,8 +12,8 @@ Output is **plausible underprint candidates** — designed by printmaking rules,
 
 - **Repo**: `/home/reidsurmeier/src/woodblock-reidsurmeier-wtf`
 - **Branch**: `main`
-- **HEAD**: `691e86a` (D14.e `split_impression` by mask_island real) + uncommitted D14.f `pin_region` real on top
-- **Tree**: dirty — `hitl.py`, `test_d14d_hitl_real.py`, `test_d9b_tools.py`, `AGENTS.md`. Commit before any other work.
+- **HEAD**: `c6b6635` (AGENTS.md migration spec) on top of `897616e` (D14.f+g pin_region + adjust_pull_groups real)
+- **Tree**: clean
 - **venv**: `.venv-v23/` (Python 3.12)
 - **Test count**: 231 passed, 1 skipped, 22 xfailed, 1 xpassed
 - **JAX**: CPU-only on this box. CUDA install abandoned (network too slow for cuDNN wheels). Solver works fine on tests ≤ 64² with `WOODBLOCK_DISABLE_SOLVER=1` autouse bypass.
@@ -77,14 +77,14 @@ When the solver runs, the orchestrator writes per-plan artifacts under:
 | Tier | File | Status |
 |------|------|--------|
 | Tier 0 — Core (6) | `backend/mcp/tools/core.py` | REAL for `propose_stack`, `inspect_plan`, `forward_render`, `score_candidate_stack`, `score_stack_delta_e`, `export_print_plan`. **9 IMPL_PENDING** for sub-renderings (heatmap, quad, pixel, etc) |
-| Tier 1 — HITL (10) | `backend/mcp/tools/hitl.py` | REAL: `compare_plans`, `merge_impressions`, `split_impression`(mask_island), `simplify_masks_for_carving`, `pin_region`(all 3 actions). **5 IMPL_PENDING**: `alternative_stacks`, `generate_stack_candidates`, `merge_impressions_by_hue_family`, `split_impression`(hue_subcluster), `adjust_pull_groups`, `compare_alternate_recipes` |
+| Tier 1 — HITL (10) | `backend/mcp/tools/hitl.py` | REAL: `compare_plans`, `merge_impressions`, `split_impression`(mask_island), `simplify_masks_for_carving`, `pin_region`(all 3 actions), `adjust_pull_groups`. **4 IMPL_PENDING**: `alternative_stacks`, `generate_stack_candidates`, `merge_impressions_by_hue_family`, `split_impression`(hue_subcluster), `compare_alternate_recipes` |
 | Tier 2 — Overlay (3) | `backend/mcp/tools/overlay.py` | REAL: `simulate_overprint` (t1_mixbox). **3 IMPL_PENDING** for t2/t3 tiers |
 | Tier 3 — Introspect (6) | `backend/mcp/tools/introspection.py` | REAL: all 6 (`get_pigments`, `get_emma_priors`, `get_defaults`, `solver_telemetry`, `dE_at`, `pigment_at`). 1 mock-fallback for unknown plan_id |
 | Tier 4 — Session (4) | `backend/mcp/tools/session.py` | REAL: all 4 |
 | Tier 5 — Carve (3) | `backend/mcp/tools/carve.py` | **3 IMPL_PENDING**: `svg_per_impression`, `svg_per_block`, `carve_order` — S9 not wired |
 | Tier 6 — Calibration (2) | `backend/mcp/tools/calibration.py` | **2 IMPL_PENDING**: `capture_swatch`, `fit_pigments` — ColorChecker detection not wired |
 
-**Total real today: 23/40. Remaining to wire: 17.**
+**Total real today: 24/40. Remaining to wire: 16.**
 
 Grep `IMPL_PENDING` to find every remaining stub.
 
@@ -117,8 +117,8 @@ In execution order. Each is a single TDD cycle ending in one commit.
 
 | ID | Tool / feature | Notes |
 |----|----------------|-------|
-| D14.f | `pin_region(plan_id, region, action, pigment_id)` | **DONE (uncommitted)**. Direct alpha-stack edit: force/forbid/merge with bbox + clamping. No solver re-run. |
-| D14.g | `adjust_pull_groups(plan_id, hints)` | Plan metadata mutation — re-pack DSATUR with constraints `{"merge_pull_groups": [...], "split_block": N, "force_block": {impression_id: block}}`. New `plan_id` persisted. |
+| D14.f | `pin_region(plan_id, region, action, pigment_id)` | **DONE** (commit `897616e`). |
+| D14.g | `adjust_pull_groups(plan_id, hints)` | **DONE** (commit `897616e`). |
 | D14.h | `merge_impressions_by_hue_family(plan_id, family_name)` | Auto-select impressions where pigment ∈ family, delegate to `merge_impressions`. Family map: see `backend/services/v23/core/hue_families.py`. |
 | D14.i | `alternative_stacks(plan_id, n)` | Re-run solver `n` times with seed perturbation OR M-prior perturbation. Parallel calls to `run_pipeline_partial`, persist n new plans, return ranked list by `score_candidate_stack`. |
 | D14.j | `split_impression(by="hue_subcluster")` | Load target.npy at the impression's mask region, k-means in Oklab on masked pixels, k=2 default. Split alpha plane by Oklab assignment. |
