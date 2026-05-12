@@ -39,11 +39,17 @@ def _png_path(tmp_path: Path, h: int = 32, w: int = 32) -> Path:
 
 
 def _mock_sam(monkeypatch) -> None:
-    """Stub the SAM HTTP gateway so the orchestrator runs without v20 sidecar."""
+    """Stub the SAM HTTP gateway so the orchestrator runs without v20 sidecar.
+
+    Also un-sets the autouse ``WOODBLOCK_DISABLE_SAM=1`` from the v23
+    conftest so the orchestrator actually CALLS the mocked sam_client.
+    """
     import base64
     from io import BytesIO
 
     from backend.services.v23.io import sam_client
+
+    monkeypatch.delenv("WOODBLOCK_DISABLE_SAM", raising=False)
 
     def fake(url, *, files, params, timeout):
         # Tiny single-region response
