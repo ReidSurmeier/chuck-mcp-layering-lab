@@ -82,6 +82,53 @@ def test_s5_solver_reorders_pulls_light_to_dark() -> None:
     assert np.allclose(ordered_alpha[-1], alpha[0])
 
 
+def test_s5_solver_role_layout_assigns_broad_mid_detail_pulls() -> None:
+    from backend.services.v23.stages import s5_solver
+
+    layout = s5_solver._role_layout(9)
+
+    assert layout.under_count == 3
+    assert layout.mid_count == 4
+    assert layout.detail_count == 2
+    assert layout.under_end == 3
+    assert layout.mid_end == 7
+
+
+def test_s5_solver_role_params_use_lower_resolution_underlayers() -> None:
+    from backend.services.v23.stages import s5_solver
+
+    alpha = np.ones((9, 64, 64), dtype=np.float32) * 0.5
+    layout = s5_solver._role_layout(9)
+    params = s5_solver._make_role_params(alpha, layout)
+
+    assert params["under"].shape == (3, 16, 16)
+    assert params["mid"].shape == (4, 32, 32)
+    assert params["detail"].shape == (2, 64, 64)
+
+
+def test_s5_solver_stage_budget_defaults_to_joint_solve(monkeypatch) -> None:
+    from backend.services.v23.stages import s5_solver
+
+    monkeypatch.delenv("WOODBLOCK_ROLE_WARMUP", raising=False)
+    layout = s5_solver._role_layout(9)
+
+    assert s5_solver._stage_iter_budget(400, layout) == {"joint": 400}
+
+
+def test_s5_solver_stage_budget_can_enable_role_warmups(monkeypatch) -> None:
+    from backend.services.v23.stages import s5_solver
+
+    monkeypatch.setenv("WOODBLOCK_ROLE_WARMUP", "1")
+    layout = s5_solver._role_layout(9)
+
+    assert s5_solver._stage_iter_budget(400, layout) == {
+        "under": 8,
+        "mid": 8,
+        "detail": 8,
+        "joint": 376,
+    }
+
+
 def test_s5_solver_speckle_penalty_prefers_brushed_zone() -> None:
     import jax.numpy as jnp
 

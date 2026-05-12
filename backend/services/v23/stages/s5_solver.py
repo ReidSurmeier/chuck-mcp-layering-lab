@@ -34,7 +34,13 @@ _VALID_SOLVE_PROFILES = ("fast", "default", "thorough")
 _PROFILE_ITERS = {"fast": 60, "default": 180, "thorough": 400}
 _PROFILE_MAX_PIXELS = {"fast": 256_000, "default": 512_000, "thorough": 768_000}
 _LOWPASS_WINDOW = 8
+_MIDPASS_WINDOW = 12
+_UNDERPASS_WINDOW = 32
 _SPECKLE_WINDOW = 9
+_UNDER_CONTROL_FACTOR = 4
+_MID_CONTROL_FACTOR = 2
+_UNDER_TARGET_STRENGTH = 0.42
+_MID_TARGET_STRENGTH = 0.72
 
 
 @dataclass(frozen=True)
@@ -52,6 +58,25 @@ class SolverResult:
     optimized_shape: tuple[int, int]
     original_shape: tuple[int, int]
     downsample_scale: float
+
+
+@dataclass(frozen=True)
+class _RoleLayout:
+    under_count: int
+    mid_count: int
+    detail_count: int
+
+    @property
+    def under_end(self) -> int:
+        return self.under_count
+
+    @property
+    def mid_end(self) -> int:
+        return self.under_count + self.mid_count
+
+    @property
+    def total(self) -> int:
+        return self.under_count + self.mid_count + self.detail_count
 
 
 def _sigmoid_box(alpha_raw: jnp.ndarray) -> jnp.ndarray:
@@ -125,6 +150,91 @@ def _alpha_speckle(alpha: jnp.ndarray) -> jnp.ndarray:
     return jnp.mean(active * broad_support * broad_support)
 
 
+def _role_layout(m: int) -> _RoleLayout:
+    """Assign printmaking roles after light-to-dark ordering."""
+    if m <= 2:
+        return _RoleLayout(under_count=0, mid_count=0, detail_count=m)
+    if m <= 4:
+        return _RoleLayout(under_count=1, mid_count=max(0, m - 2), detail_count=1)
+    detail_count = 2
+    under_count = min(3, m - detail_count)
+    mid_count = max(0, m - under_count - detail_count)
+    return _RoleLayout(
+        under_count=under_count,
+        mid_count=mid_count,
+        detail_count=detail_count,
+    )
+
+
+def _control_shape(shape: tuple[int, int], factor: int) -> tuple[int, int]:
+    h, w = shape
+    return max(16, int(round(h / factor))), max(16, int(round(w / factor)))
+
+
+def _logit_np(alpha: NDArray[np.float32]) -> NDArray[np.float32]:
+    clipped = np.clip(alpha, 0.02, 0.98)
+    return np.log(clipped / (1.0 - clipped)).astype(np.float32)
+
+
+def _make_role_params(
+    alpha_stack: NDArray[np.float32],
+    layout: _RoleLayout,
+) -> dict[str, jnp.ndarray]:
+    """Build staged control-grid params for under/mid/detail pulls."""
+    h, w = alpha_stack.shape[1:]
+    params: dict[str, jnp.ndarray] = {}
+    if layout.under_count:
+        under_h, under_w = _control_shape((h, w), _UNDER_CONTROL_FACTOR)
+        under = _resize_alpha_stack(alpha_stack[: layout.under_end], (under_w, under_h))
+        params["under"] = jnp.asarray(_logit_np(under), dtype=jnp.float32)
+    if layout.mid_count:
+        mid_h, mid_w = _control_shape((h, w), _MID_CONTROL_FACTOR)
+        mid = _resize_alpha_stack(
+            alpha_stack[layout.under_end : layout.mid_end],
+            (mid_w, mid_h),
+        )
+        params["mid"] = jnp.asarray(_logit_np(mid), dtype=jnp.float32)
+    if layout.detail_count:
+        detail = alpha_stack[layout.mid_end : layout.total]
+        params["detail"] = jnp.asarray(_logit_np(detail), dtype=jnp.float32)
+    return params
+
+
+def _resize_alpha_jax(alpha: jnp.ndarray, shape: tuple[int, int, int]) -> jnp.ndarray:
+    if tuple(alpha.shape) == shape:
+        return alpha
+    return jnp.clip(
+        jax.image.resize(alpha, shape, method="linear", antialias=False),
+        0.0,
+        1.0,
+    )
+
+
+def _expand_role_params(
+    params: dict[str, jnp.ndarray],
+    layout: _RoleLayout,
+    target_shape: tuple[int, int],
+) -> jnp.ndarray:
+    """Expand role params back to full solve-grid alpha stack."""
+    h, w = target_shape
+    parts: list[jnp.ndarray] = []
+    if layout.under_count:
+        under = _sigmoid_box(params["under"])
+        parts.append(_resize_alpha_jax(under, (layout.under_count, h, w)))
+    if layout.mid_count:
+        mid = _sigmoid_box(params["mid"])
+        parts.append(_resize_alpha_jax(mid, (layout.mid_count, h, w)))
+    if layout.detail_count:
+        detail = _sigmoid_box(params["detail"])
+        parts.append(_resize_alpha_jax(detail, (layout.detail_count, h, w)))
+    return jnp.concatenate(parts, axis=0)
+
+
+def _forward_mhw(alpha_mhw: jnp.ndarray, pigment_idx: jnp.ndarray) -> jnp.ndarray:
+    alpha_hwm = jnp.transpose(alpha_mhw, (1, 2, 0))
+    return forward_render_jax.forward_render(alpha_hwm, pigment_idx)
+
+
 def _print_order(
     alpha_stack: NDArray[np.float32],
     pigment_idx: NDArray[np.int32],
@@ -150,16 +260,53 @@ def _reorder_for_printing(
 
 
 def _solver_loss(
-    alpha_raw: jnp.ndarray,
+    params: dict[str, jnp.ndarray],
     target_rgb: jnp.ndarray,
     pigment_idx: jnp.ndarray,
     target_weight: jnp.ndarray,
+    target_underpass: jnp.ndarray,
+    target_midpass: jnp.ndarray,
     target_lowpass: jnp.ndarray,
+    layout: _RoleLayout,
+    target_shape: tuple[int, int],
+    stage: str = "final",
 ) -> jnp.ndarray:
     """Print-aware differentiable objective for alpha stack refinement."""
-    alpha = _sigmoid_box(alpha_raw)
-    alpha_hwm = jnp.transpose(alpha, (1, 2, 0))  # (M, H, W) -> (H, W, M)
-    rgb = forward_render_jax.forward_render(alpha_hwm, pigment_idx)
+    alpha = _expand_role_params(params, layout, target_shape)
+    rgb = _forward_mhw(alpha, pigment_idx)
+
+    under_loss = 0.0
+    mid_loss = 0.0
+    if layout.under_count:
+        rgb_under = _forward_mhw(
+            alpha[: layout.under_end],
+            pigment_idx[: layout.under_end],
+        )
+        under_loss = jnp.mean(
+            (_avg_pool_rgb(rgb_under, _UNDERPASS_WINDOW) - target_underpass) ** 2
+        )
+    if layout.mid_end > 0:
+        rgb_mid = _forward_mhw(alpha[: layout.mid_end], pigment_idx[: layout.mid_end])
+        mid_loss = jnp.mean(
+            (_avg_pool_rgb(rgb_mid, _MIDPASS_WINDOW) - target_midpass) ** 2
+        )
+
+    if stage == "under":
+        alpha_under = alpha[: layout.under_end]
+        return (
+            under_loss
+            + 0.080 * _layered_alpha_tv(alpha_under)
+            + 0.120 * _alpha_speckle(alpha_under)
+        )
+    if stage == "mid":
+        alpha_prefix = alpha[: layout.mid_end]
+        return (
+            0.75 * mid_loss
+            + 0.25 * under_loss
+            + 0.060 * _layered_alpha_tv(alpha_prefix)
+            + 0.080 * _alpha_speckle(alpha_prefix)
+        )
+
     weighted_rgb = jnp.mean(target_weight * (rgb - target_rgb) ** 2)
     lowpass = jnp.mean((_avg_pool_rgb(rgb) - target_lowpass) ** 2)
     tv = _layered_alpha_tv(alpha)
@@ -174,6 +321,8 @@ def _solver_loss(
     return (
         weighted_rgb
         + 0.65 * lowpass
+        + 0.040 * mid_loss
+        + 0.015 * under_loss
         + 0.030 * tv
         + 0.045 * speckle
         + 0.015 * dark_on_bright
@@ -237,6 +386,23 @@ def _resize_alpha_stack(
     return np.stack(out, axis=0).astype(np.float32)
 
 
+def _stage_iter_budget(iters: int, layout: _RoleLayout) -> dict[str, int]:
+    """Keep total work bounded while splitting solve into role stages."""
+    if os.environ.get("WOODBLOCK_ROLE_WARMUP") != "1":
+        return {"joint": iters}
+    if layout.under_count and layout.mid_count and layout.detail_count:
+        under = min(8, max(1, iters // 10))
+        mid = min(8, max(1, iters // 10))
+        detail = min(8, max(1, iters // 10))
+        joint = max(8, iters - under - mid - detail)
+        return {"under": under, "mid": mid, "detail": detail, "joint": joint}
+    if layout.mid_count and layout.detail_count:
+        mid = min(8, max(1, iters // 10))
+        detail = min(8, max(1, iters // 10))
+        return {"mid": mid, "detail": detail, "joint": max(8, iters - mid - detail)}
+    return {"detail": iters}
+
+
 def _prepare_solver_grid(
     target_rgb: NDArray[np.float32],
     alpha_init: NDArray[np.float32],
@@ -294,39 +460,87 @@ def run_s5_solver(
         alpha_ordered,
         solve_profile=solve_profile,
     )
-    # Convert α from [0,1] to logit space so unconstrained L-BFGS works
-    clipped = np.clip(alpha_solve, 0.02, 0.98)
-    init_raw = np.log(clipped / (1.0 - clipped)).astype(np.float32)
 
+    layout = _role_layout(m)
+    params = _make_role_params(alpha_solve, layout)
     target_j = jnp.asarray(target_solve, dtype=jnp.float32)
     pigments_j = jnp.asarray(pigment_ordered, dtype=jnp.int32)
     target_weight = _target_edge_weight(target_j)
+    paper_j = jnp.asarray(forward_render_jax.PAPER_RGB, dtype=jnp.float32)
+    target_under_rgb = paper_j + _UNDER_TARGET_STRENGTH * (target_j - paper_j)
+    target_mid_rgb = paper_j + _MID_TARGET_STRENGTH * (target_j - paper_j)
+    target_underpass = _avg_pool_rgb(target_under_rgb, _UNDERPASS_WINDOW)
+    target_midpass = _avg_pool_rgb(target_mid_rgb, _MIDPASS_WINDOW)
     target_lowpass = _avg_pool_rgb(target_j)
+    target_shape = (int(target_solve.shape[0]), int(target_solve.shape[1]))
 
-    def loss_fn(a_raw):
-        return _solver_loss(a_raw, target_j, pigments_j, target_weight, target_lowpass)
+    def full_loss_fn(p):
+        return _solver_loss(
+            p,
+            target_j,
+            pigments_j,
+            target_weight,
+            target_underpass,
+            target_midpass,
+            target_lowpass,
+            layout,
+            target_shape,
+            "final",
+        )
 
-    initial_loss = float(loss_fn(jnp.asarray(init_raw)))
+    initial_loss = float(full_loss_fn(params))
     t0 = time.perf_counter()
-    solver = jaxopt.LBFGS(fun=loss_fn, maxiter=iters, tol=1e-7)
-    result = solver.run(jnp.asarray(init_raw))
+    iters_used = 0
+    for stage, maxiter in _stage_iter_budget(iters, layout).items():
+        if stage == "joint":
+            solver = jaxopt.LBFGS(fun=full_loss_fn, maxiter=maxiter, tol=1e-7)
+            result = solver.run(params)
+            params = result.params
+            iters_used += (
+                int(getattr(result.state, "iter_num", maxiter))
+                if hasattr(result, "state")
+                else maxiter
+            )
+            continue
+        if stage not in params:
+            continue
+
+        def stage_loss_fn(variable, stage_name=stage, base_params=params):
+            stage_params = dict(base_params)
+            stage_params[stage_name] = variable
+            return _solver_loss(
+                stage_params,
+                target_j,
+                pigments_j,
+                target_weight,
+                target_underpass,
+                target_midpass,
+                target_lowpass,
+                layout,
+                target_shape,
+                stage_name,
+            )
+
+        solver = jaxopt.LBFGS(fun=stage_loss_fn, maxiter=maxiter, tol=1e-7)
+        result = solver.run(params[stage])
+        params[stage] = result.params
+        iters_used += (
+            int(getattr(result.state, "iter_num", maxiter))
+            if hasattr(result, "state")
+            else maxiter
+        )
+
     wall_s = time.perf_counter() - t0
-    alpha_raw_final = result.params
-    alpha_stack_solve = np.asarray(jax.nn.sigmoid(alpha_raw_final))
+    alpha_stack_solve = np.asarray(_expand_role_params(params, layout, target_shape))
     alpha_stack = (
         _resize_alpha_stack(alpha_stack_solve, (orig_w, orig_h))
         if optimized_shape != (orig_h, orig_w)
         else alpha_stack_solve
     )
-    final_loss = float(loss_fn(alpha_raw_final))
+    final_loss = float(full_loss_fn(params))
 
     pigment_tuple = tuple(int(p) for p in pigment_ordered.tolist())
     impressions = _alphas_to_impressions(alpha_stack, pigment_tuple)
-    iters_used = (
-        int(getattr(result.state, "iter_num", iters))
-        if hasattr(result, "state")
-        else iters
-    )
 
     return SolverResult(
         alpha_stack=alpha_stack.astype(np.float32),
