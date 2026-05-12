@@ -216,15 +216,89 @@ def inspect_plan(
                 )
             ],
         )
+
+    try:
+        plan = _orch.load_plan(plan_id)
+    except _orch.OrchestratorError as exc:
+        return ToolResult(
+            ok=True,
+            data={"plan_id": plan_id, "focus": focus, "artifact_path": None},
+            errors=[exc.error, _impl_pending(
+                "IMPL_PENDING_INSPECT",
+                "plan_id not found — placeholder returned. Run propose_stack first.",
+            )],
+        )
+
+    from backend.services.v23.stages import s10_emit
+
+    plan_dir = _orch._plan_dir(plan.session_id, plan.plan_id)
+    if focus == "composite":
+        composite_path = plan_dir / "composite_preview.png"
+        composite_path.write_bytes(s10_emit._render_composite(plan))
+        return ToolResult(
+            ok=True,
+            data={"plan_id": plan_id, "focus": focus, "artifact_path": str(composite_path)},
+        )
+    if focus == "recipe":
+        recipe_path = plan_dir / "recipe.md"
+        recipe_path.write_text(s10_emit._build_recipe_md(plan))
+        return ToolResult(
+            ok=True,
+            data={"plan_id": plan_id, "focus": focus, "artifact_path": str(recipe_path)},
+        )
+    if focus == "per_impression":
+        per_imp_dir = plan_dir / "impressions"
+        per_imp_dir.mkdir(parents=True, exist_ok=True)
+        paths_out: list[str] = []
+        for i, imp in enumerate(plan.impressions):
+            p = per_imp_dir / f"{imp['id']}.png"
+            p.write_bytes(s10_emit._build_per_impression_png(plan, i))
+            paths_out.append(str(p))
+        return ToolResult(
+            ok=True,
+            data={"plan_id": plan_id, "focus": focus, "impression_paths": paths_out},
+        )
+    if focus == "confidence":
+        return ToolResult(
+            ok=True,
+            data={
+                "plan_id": plan_id,
+                "focus": focus,
+                "state_summary": plan.state_summary,
+                "state_stack_path": plan.state_stack_path,
+            },
+        )
+    if focus == "heatmap":
+        return ToolResult(
+            ok=True,
+            data={
+                "plan_id": plan_id, "focus": focus,
+                "dE_mean": plan.reconstruction_dE_mean,
+                "dE_p95": plan.reconstruction_dE_p95,
+                "artifact_path": None,
+            },
+            errors=[_impl_pending(
+                "IMPL_PENDING_HEATMAP",
+                "per-pixel ΔE heatmap PNG lands at D12.c — manifest scalars returned",
+            )],
+        )
+    if focus == "quad":
+        return ToolResult(
+            ok=True,
+            data={"plan_id": plan_id, "focus": focus, "artifact_path": None},
+            errors=[_impl_pending(
+                "IMPL_PENDING_QUAD",
+                "4-up grid (orig|composite|dE|masks) lands at D12.c",
+            )],
+        )
+    # pixel — would need (x, y) args; use dE_at + pigment_at instead
     return ToolResult(
         ok=True,
         data={"plan_id": plan_id, "focus": focus, "artifact_path": None},
-        errors=[
-            _impl_pending(
-                "IMPL_PENDING_INSPECT",
-                "inspect_plan artifact resolution lands at D10; placeholder returned",
-            )
-        ],
+        errors=[_impl_pending(
+            "IMPL_PENDING_PIXEL",
+            "use dE_at(plan_id, x, y) or pigment_at(plan_id, x, y) for pixel-level inspection",
+        )],
     )
 
 
