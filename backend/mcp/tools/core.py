@@ -310,30 +310,39 @@ def score_candidate_stack(plan_id: str) -> ToolResult[dict[str, Any]]:
 
 
 def export_print_plan(plan_id: str, out_dir: str | None = None) -> ToolResult[dict[str, Any]]:
+    """Real ZIP export via S10 emitter when the plan exists in the active session.
+
+    Falls back to the stub ZIP if the plan_id is unknown (mock-mode plans created
+    by ``propose_stack`` without the orchestrator). Side-writes ``recipe.md`` to
+    ``out_dir`` for direct inspection.
+    """
+    from backend.services.v23.stages import s10_emit
+
     out = Path(out_dir or ".")
     out.mkdir(parents=True, exist_ok=True)
-    zip_path = out / f"{plan_id}.zip"
-    recipe_path = out / f"{plan_id}_recipe.md"
-
     recipe_md = generate_print_recipe_report(plan_id).data["markdown"]
+    recipe_path = out / f"{plan_id}_recipe.md"
     recipe_path.write_text(recipe_md)
-    # Empty ZIP placeholder
-    import zipfile
 
-    with zipfile.ZipFile(zip_path, "w") as zf:
-        zf.writestr("manifest.json", "{}")
-        zf.writestr("recipe.md", recipe_md)
+    try:
+        zip_path = s10_emit.emit_plan_zip(plan_id, out_dir=out)
+        return ToolResult(
+            ok=True,
+            data={"plan_id": plan_id, "zip_path": str(zip_path), "recipe_path": str(recipe_path)},
+        )
+    except s10_emit.EmitError as exc:
+        # Plan_id unknown — fall back to minimal stub ZIP for backwards-compat
+        import zipfile
 
-    return ToolResult(
-        ok=True,
-        data={"plan_id": plan_id, "zip_path": str(zip_path), "recipe_path": str(recipe_path)},
-        errors=[
-            _impl_pending(
-                "IMPL_PENDING_EXPORT",
-                "real ZIP composition (impressions/, blocks/, tensors/) lands at D10/D13",
-            )
-        ],
-    )
+        zip_path = out / f"{plan_id}.zip"
+        with zipfile.ZipFile(zip_path, "w") as zf:
+            zf.writestr("manifest.json", "{}")
+            zf.writestr("recipe.md", recipe_md)
+        return ToolResult(
+            ok=True,
+            data={"plan_id": plan_id, "zip_path": str(zip_path), "recipe_path": str(recipe_path)},
+            errors=[exc.error],
+        )
 
 
 # ---------------------------------------------------------------------------
