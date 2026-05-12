@@ -241,18 +241,161 @@ def split_impression(
     plan_id: str, impression_id: str,
     by: Literal["mask_island", "hue_subcluster"] = "mask_island",
 ) -> ToolResult[dict[str, Any]]:
+    """Split one impression's alpha plane into child impressions.
+
+    ``mask_island``: connected-components on alpha > 0.05 — each component becomes
+    its own impression sharing the parent's pigment + order_step neighbourhood.
+    ``hue_subcluster``: deferred to D14.e (needs target-image binding).
+    """
     if by not in ("mask_island", "hue_subcluster"):
         return ToolResult(ok=False, data=None, errors=[
             WoodblockError(tier="refusal", code="INVALID_SPLIT_MODE",
                            message=f"by must be mask_island or hue_subcluster, got {by!r}",
                            recoverable=True),
         ])
-    return ToolResult(
-        ok=True,
-        data={"plan_id": plan_id, "new_plan_id": _new_plan_id(plan_id),
-              "split_impression": impression_id, "by": by, "child_count": 2},
-        errors=[_impl_pending("IMPL_PENDING_SPLIT", "real split lands at D11")],
+    if by == "hue_subcluster":
+        return ToolResult(
+            ok=True,
+            data={"plan_id": plan_id, "new_plan_id": _new_plan_id(plan_id),
+                  "split_impression": impression_id, "by": by, "child_count": 1},
+            errors=[_impl_pending(
+                "IMPL_PENDING_HUE_SUBCLUSTER",
+                "hue subcluster split wires at D14.e (target-rgb k-means)",
+            )],
+        )
+
+    import json
+    from dataclasses import asdict, replace
+    from pathlib import Path
+
+    import numpy as np
+    from scipy import ndimage as _ndi
+
+    from backend.services.v23 import orchestrator as _orch
+
+    try:
+        plan = _orch.load_plan(plan_id)
+    except _orch.OrchestratorError as exc:
+        return ToolResult(ok=False, data=None, errors=[exc.error])
+
+    id_to_idx = {imp["id"]: i for i, imp in enumerate(plan.impressions)}
+    if impression_id not in id_to_idx:
+        return ToolResult(ok=False, data=None, errors=[
+            WoodblockError(tier="refusal", code="UNKNOWN_IMPRESSION_ID",
+                           message=f"impression_id {impression_id!r} not in plan {plan_id}",
+                           recoverable=True),
+        ])
+    if plan.alpha_stack_path is None or not Path(plan.alpha_stack_path).is_file():
+        return ToolResult(ok=False, data=None, errors=[
+            WoodblockError(tier="refusal", code="NO_SOLVER_OUTPUT",
+                           message="plan has no alpha_stack to split against",
+                           recoverable=True),
+        ])
+
+    target_idx = id_to_idx[impression_id]
+    alpha_stack = np.load(plan.alpha_stack_path)  # (M, H, W)
+    state_stack = np.load(plan.state_stack_path) if plan.state_stack_path else None
+    pigment_idx = np.asarray(plan.pigment_idx, dtype=np.int32)
+    target_alpha = alpha_stack[target_idx]  # (H, W)
+
+    # Connected components on alpha > 0.05
+    mask = target_alpha > 0.05
+    if not mask.any():
+        return ToolResult(ok=False, data=None, errors=[
+            WoodblockError(tier="refusal", code="EMPTY_IMPRESSION",
+                           message="impression has no non-zero pixels — cannot split",
+                           recoverable=True),
+        ])
+    labels, ncomp = _ndi.label(mask)
+    if ncomp <= 1:
+        # Single component — splitting would be a no-op
+        return ToolResult(ok=True, data={
+            "plan_id": plan_id, "new_plan_id": plan_id,
+            "split_impression": impression_id, "by": by, "child_count": 1,
+            "note": "single connected component — no split performed",
+        })
+
+    # Build child alpha planes — each child carries only its component's pixels
+    children = []
+    for k in range(1, ncomp + 1):
+        child_alpha = np.where(labels == k, target_alpha, 0.0).astype(np.float32)
+        children.append(child_alpha)
+
+    # Insert children at target_idx, shifting later impressions back
+    # New alpha_stack = before_target + children + after_target
+    before = alpha_stack[:target_idx]
+    after = alpha_stack[target_idx + 1:]
+    new_alpha = np.concatenate([before, np.stack(children, axis=0), after], axis=0)
+
+    before_pid = pigment_idx[:target_idx]
+    after_pid = pigment_idx[target_idx + 1:]
+    parent_pid = int(pigment_idx[target_idx])
+    new_pigment = np.concatenate([
+        before_pid,
+        np.full(ncomp, parent_pid, dtype=np.int32),
+        after_pid,
+    ])
+
+    new_state = None
+    if state_stack is not None:
+        before_s = state_stack[:target_idx]
+        after_s = state_stack[target_idx + 1:]
+        parent_s = state_stack[target_idx]
+        # Each child keeps the same state pattern, masked by its component
+        child_states = []
+        for k in range(1, ncomp + 1):
+            cs = np.where(labels == k, parent_s, 0).astype(parent_s.dtype)
+            child_states.append(cs)
+        new_state = np.concatenate([before_s, np.stack(child_states, axis=0), after_s], axis=0)
+
+    new_plan_id = _new_plan_id(plan_id)
+    new_plan_dir = _orch._plan_dir(plan.session_id, new_plan_id)
+    new_alpha_path = new_plan_dir / "alpha_stack.npy"
+    new_pigment_path = new_plan_dir / "pigment_idx.npy"
+    np.save(new_alpha_path, new_alpha)
+    np.save(new_pigment_path, new_pigment)
+    new_state_path: Path | None = None
+    if new_state is not None:
+        new_state_path = new_plan_dir / "state_stack.npy"
+        np.save(new_state_path, new_state)
+    # Copy target.npy
+    if plan.alpha_stack_path:
+        old_target = Path(plan.alpha_stack_path).parent / "target.npy"
+        if old_target.is_file():
+            (new_plan_dir / "target.npy").write_bytes(old_target.read_bytes())
+
+    # Rebuild impressions list
+    parent_imp = plan.impressions[target_idx]
+    new_impressions = list(plan.impressions[:target_idx])
+    for k, child_alpha in enumerate(children, start=1):
+        cimp = dict(parent_imp)
+        cimp["id"] = f"{parent_imp.get('id', 'imp')}_split_{k}"
+        cimp["mean_alpha"] = float(child_alpha.mean())
+        cimp["coverage_pct"] = float((child_alpha > 0.05).mean() * 100.0)
+        new_impressions.append(cimp)
+    new_impressions.extend(plan.impressions[target_idx + 1:])
+    for i, imp in enumerate(new_impressions):
+        imp["order_step"] = i
+
+    new_plan = replace(
+        plan,
+        plan_id=new_plan_id,
+        impressions=new_impressions,
+        alpha_stack_path=str(new_alpha_path),
+        state_stack_path=str(new_state_path) if new_state_path else plan.state_stack_path,
+        pigment_idx=list(int(p) for p in new_pigment),
+        created_at=_orch._now_iso(),
     )
+    (new_plan_dir / "plan.json").write_text(json.dumps(asdict(new_plan), indent=2, sort_keys=True))
+
+    return ToolResult(ok=True, data={
+        "plan_id": plan_id,
+        "new_plan_id": new_plan_id,
+        "split_impression": impression_id,
+        "by": by,
+        "child_count": ncomp,
+        "child_ids": [c["id"] for c in new_impressions[target_idx:target_idx + ncomp]],
+    })
 
 
 def adjust_pull_groups(plan_id: str, hints: dict[str, Any]) -> ToolResult[dict[str, Any]]:

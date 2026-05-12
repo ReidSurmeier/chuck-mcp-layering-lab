@@ -58,6 +58,30 @@ def test_compare_plans_unknown_refuses(tmp_path, monkeypatch) -> None:
     assert r.ok is False
 
 
+def test_split_impression_by_mask_island_real(two_plans) -> None:
+    p1, _ = two_plans
+    if not p1.impressions:
+        pytest.skip("solver produced 0 impressions on this seed")
+    target_id = p1.impressions[0]["id"]
+    from backend.mcp.tools import hitl
+    r = hitl.split_impression(p1.plan_id, target_id, by="mask_island")
+    assert r.ok is True, r.errors
+    assert r.data["new_plan_id"] != p1.plan_id
+    assert r.data["child_count"] >= 1
+    # New plan must load + have >=parent impression count
+    from backend.services.v23 import orchestrator as _orch
+    split = _orch.load_plan(r.data["new_plan_id"])
+    assert len(split.impressions) >= len(p1.impressions)
+
+
+def test_split_impression_unknown_id_refuses(two_plans) -> None:
+    p1, _ = two_plans
+    from backend.mcp.tools import hitl
+    r = hitl.split_impression(p1.plan_id, "imp_does_not_exist", by="mask_island")
+    assert r.ok is False
+    assert r.errors[0].code == "UNKNOWN_IMPRESSION_ID"
+
+
 def test_merge_impressions_real_creates_new_plan(two_plans) -> None:
     p1, _ = two_plans
     if len(p1.impressions) < 2:
