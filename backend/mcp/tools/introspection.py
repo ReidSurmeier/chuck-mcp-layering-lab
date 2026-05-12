@@ -58,17 +58,39 @@ def get_defaults() -> ToolResult[dict[str, Any]]:
 
 
 def solver_telemetry(plan_id: str) -> ToolResult[dict[str, Any]]:
+    """Read solver run summary from persisted plan; degrade if not found."""
+    from backend.services.v23 import orchestrator as _orch
+
+    try:
+        plan = _orch.load_plan(plan_id)
+    except _orch.OrchestratorError:
+        return ToolResult(
+            ok=True,
+            data={"plan_id": plan_id, "pyramid_levels_completed": 0,
+                  "iters_per_level": [], "loss_per_level": [],
+                  "rule_loss_breakdown": {}, "exit_reason": "mock",
+                  "wall_time_s": 0.0, "divergence_flags": []},
+            errors=[WoodblockError(
+                tier="degraded", code="IMPL_PENDING_TELEMETRY",
+                message=f"plan_id {plan_id!r} not found — run propose_stack first",
+                recoverable=True,
+            )],
+        )
     return ToolResult(
         ok=True,
-        data={"plan_id": plan_id, "pyramid_levels_completed": 0,
-              "iters_per_level": [], "loss_per_level": [],
-              "rule_loss_breakdown": {}, "exit_reason": "mock",
-              "wall_time_s": 0.0, "divergence_flags": []},
-        errors=[WoodblockError(
-            tier="degraded", code="IMPL_PENDING_TELEMETRY",
-            message="solver telemetry persists at D10 once real solver runs",
-            recoverable=True,
-        )],
+        data={
+            "plan_id": plan_id,
+            "pyramid_levels_completed": 1,  # single-level for day-1
+            "iters_per_level": [{"fast": 60, "default": 180, "thorough": 400}.get(plan.solve_profile, 180)],
+            "loss_per_level": [],  # full per-iter trace lands at D14.b
+            "rule_loss_breakdown": {},
+            "exit_reason": plan.solver_status,
+            "wall_time_s": plan.solver_wall_s,
+            "divergence_flags": [],
+            "solve_profile": plan.solve_profile,
+            "impression_count": len(plan.impressions),
+            "block_count": plan.block_count,
+        },
     )
 
 

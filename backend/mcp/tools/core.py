@@ -353,15 +353,29 @@ def simulate_candidate_stack(plan_id: str) -> ToolResult[dict[str, Any]]:
 
 
 def score_stack_delta_e(plan_id: str, region: dict | None = None) -> ToolResult[dict[str, Any]]:
+    """Cheap ΔE lookup from persisted Plan; falls back on unknown plan_id."""
+    try:
+        plan = _orch.load_plan(plan_id)
+    except _orch.OrchestratorError:
+        return ToolResult(
+            ok=True,
+            data={"plan_id": plan_id, "dE_mean": 0.0, "dE_p95": 0.0, "region": region},
+            errors=[_impl_pending(
+                "IMPL_PENDING_DE_LOOKUP",
+                "plan_id not found — returning neutral mock. Run propose_stack first.",
+            )],
+        )
     return ToolResult(
         ok=True,
-        data={"plan_id": plan_id, "dE_mean": 0.0, "dE_p95": 0.0, "region": region},
-        errors=[
-            _impl_pending(
-                "IMPL_PENDING_DE_LOOKUP",
-                "ΔE lookup reads cached scores from Plan; lands at D10",
-            )
-        ],
+        data={
+            "plan_id": plan_id,
+            "dE_mean": plan.reconstruction_dE_mean,
+            "dE_p95": plan.reconstruction_dE_p95,
+            "region": region,
+            "render_tier": "t1_mixbox",
+            "target_dE_mean": 1.5,
+            "target_dE_p95": 3.0,
+        },
     )
 
 
