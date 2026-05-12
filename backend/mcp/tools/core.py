@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from backend.mcp.errors import ToolResult, WoodblockError
+from backend.services.v23 import orchestrator as _orch
 from backend.services.v23.core import templates as _templates
 from backend.services.v23.stages import s1_ingest
 
@@ -150,37 +151,44 @@ def propose_stack(
     m_prior: int | None = None,
     strategy_template: str | None = None,
 ) -> ToolResult[dict[str, Any]]:
-    if solve_profile not in _VALID_SOLVE_PROFILES:
-        return ToolResult(
-            ok=False,
-            data=None,
-            errors=[
-                WoodblockError(
-                    tier="refusal",
-                    code="INVALID_SOLVE_PROFILE",
-                    message=f"solve_profile must be one of {_VALID_SOLVE_PROFILES}, got {solve_profile!r}",
-                    hint=f"use one of: {', '.join(_VALID_SOLVE_PROFILES)}",
-                    recoverable=True,
-                )
-            ],
+    """Run S1→S2→S3 + template suggest. S5 solver still IMPL_PENDING.
+
+    Real ``plan_id`` + persisted ``plan.json`` under the active session
+    even though impressions are empty until the real solver wires at D10.
+    """
+    try:
+        plan = _orch.run_pipeline_partial(
+            path,
+            solve_profile=solve_profile,
+            m_prior=m_prior,
+            strategy_template=strategy_template,
         )
-    plan_id = f"plan_mock_{int(time.time() * 1000)}"
+    except _orch.OrchestratorError as exc:
+        return ToolResult(ok=False, data=None, errors=[exc.error])
     return ToolResult(
         ok=True,
         data={
-            "plan_id": plan_id,
-            "solve_profile": solve_profile,
-            "strategy_template": strategy_template,
+            "plan_id": plan.plan_id,
+            "session_id": plan.session_id,
+            "image_sha256": plan.image_sha256,
+            "solve_profile": plan.solve_profile,
+            "strategy_template": plan.suggested_template,
+            "template_confidence": plan.template_confidence,
             "m_prior": m_prior or 6,
-            "impression_count": 0,
-            "reconstruction_dE_mean": None,
-            "reconstruction_dE_p95": None,
-            "solver_wall_s": 0.0,
+            "impression_count": len(plan.impressions),
+            "dominant_family": plan.dominant_family,
+            "family_areas": plan.family_areas,
+            "sam_region_count": len(plan.sam_regions),
+            "hue_family_map_path": plan.hue_family_map_path,
+            "reconstruction_dE_mean": plan.reconstruction_dE_mean,
+            "reconstruction_dE_p95": plan.reconstruction_dE_p95,
+            "solver_wall_s": plan.solver_wall_s,
+            "solver_status": plan.solver_status,
         },
         errors=[
             _impl_pending(
                 "IMPL_PENDING_SOLVER",
-                "real JAX L-BFGS-B inverse solver lands at D10 — propose_stack returns mock plan_id until then",
+                "S1→S2→S3 + template suggestion are real; S4-S10 (Tan warm-start + JAX inverse solver + three-state mask + DSATUR + SVG + ZIP) land incrementally in D10+ ticks",
             )
         ],
     )
