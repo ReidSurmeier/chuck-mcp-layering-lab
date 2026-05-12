@@ -308,15 +308,38 @@ def inspect_plan(
 
 
 def forward_render(plan_id: str) -> ToolResult[dict[str, Any]]:
+    """Re-render the composite for a persisted plan via the JAX forward render."""
+    from backend.services.v23.stages import s10_emit
+
+    try:
+        plan = _orch.load_plan(plan_id)
+    except _orch.OrchestratorError as exc:
+        return ToolResult(
+            ok=True,
+            data={"plan_id": plan_id, "composite_path": None, "dE_map_path": None},
+            errors=[exc.error, _impl_pending(
+                "IMPL_PENDING_FORWARD",
+                "plan_id not found — run propose_stack first",
+            )],
+        )
+    plan_dir = _orch._plan_dir(plan.session_id, plan.plan_id)
+    composite_path = plan_dir / "composite_preview.png"
+    composite_path.write_bytes(s10_emit._render_composite(plan))
     return ToolResult(
         ok=True,
-        data={"plan_id": plan_id, "composite_path": None, "dE_map_path": None},
-        errors=[
-            _impl_pending(
-                "IMPL_PENDING_FORWARD",
-                "forward_render reads Plan tensor + invokes forward_render_jax; lands at D10",
-            )
-        ],
+        data={
+            "plan_id": plan_id,
+            "composite_path": str(composite_path),
+            "dE_map_path": None,
+            "render_tier": "t1_mixbox",
+            "reconstruction_dE_mean": plan.reconstruction_dE_mean,
+            "reconstruction_dE_p95": plan.reconstruction_dE_p95,
+            "render_tier_note": (
+                "Rendered as if pigments were pre-mixed in a well — actual "
+                "mokuhanga overprint may shift colors ΔE 4-8 for stacks > 3 deep. "
+                "Upload swatch overprint matrix to unlock t2_empirical."
+            ),
+        },
     )
 
 
