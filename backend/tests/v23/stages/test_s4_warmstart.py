@@ -88,7 +88,9 @@ def test_layering_lab_warmstart_infers_broad_base_and_chroma_accent() -> None:
 
     result = layering_lab_warmstart(img, target_palette_size=6)
 
-    light_underlayer_candidates = {0, 1, 2, 13, 14, 21, 23}
+    light_underlayer_candidates = {
+        0, 1, 2, 13, 14, 21, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 34, 35,
+    }
     red_candidates = {3, 16, 17, 18}
     assert result.pigment_idx[0] in light_underlayer_candidates
     assert any(pid in red_candidates for pid in result.pigment_idx)
@@ -97,15 +99,17 @@ def test_layering_lab_warmstart_infers_broad_base_and_chroma_accent() -> None:
     assert underlayer.shape == (48, 48)
 
 
-def test_layering_lab_warmstart_does_not_duplicate_base_yellow_family() -> None:
+def test_layering_lab_warmstart_can_expand_into_premix_wash_roles() -> None:
     from backend.services.v23.stages.s4_warmstart import layering_lab_warmstart
 
     img = np.full((64, 64, 3), [244, 226, 150], dtype=np.uint8)
+    img[:18, :24] = (255, 157, 178)
+    img[:18, 24:48] = (183, 237, 223)
     img[18:44, 18:44] = (224, 58, 45)
     result = layering_lab_warmstart(img, target_palette_size=10)
 
-    yellow_family = {0, 1, 13}
-    assert sum(1 for pid in result.pigment_idx if pid in yellow_family) <= 1
+    assert any(pid >= 24 for pid in result.pigment_idx)
+    assert len(set(result.pigment_idx)) == len(result.pigment_idx)
 
 
 def test_layering_lab_warmstart_seeds_dark_key_plate() -> None:
@@ -125,5 +129,5 @@ def test_layering_lab_warmstart_detects_near_paper_cool_tint() -> None:
     img[12:52, 10:54] = (224, 232, 240)
     result = layering_lab_warmstart(img, target_palette_size=8)
 
-    cool_family = {6, 7, 20, 21}
+    cool_family = {6, 7, 20, 21, 28, 29, 30, 34}
     assert any(pid in cool_family for pid in result.pigment_idx)

@@ -94,6 +94,18 @@ def test_s5_solver_role_layout_assigns_broad_mid_detail_pulls() -> None:
     assert layout.mid_end == 7
 
 
+def test_s5_solver_adaptive_pigments_use_role_hinted_under_count() -> None:
+    from backend.services.v23.stages import s5_solver
+
+    layout = s5_solver._role_layout_for_pigments(
+        np.asarray([26, 31, 27, 28, 25, 17, 20, 12], dtype=np.int32)
+    )
+
+    assert layout.under_count == 2
+    assert layout.mid_count == 4
+    assert layout.detail_count == 2
+
+
 def test_s5_solver_role_params_use_underlayer_envelope_plus_carve_gate() -> None:
     from backend.services.v23.stages import s5_solver
 

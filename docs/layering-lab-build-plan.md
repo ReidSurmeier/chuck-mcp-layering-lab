@@ -122,46 +122,107 @@ plan.
   - Middle color plates carry a pairwise overlap penalty to prefer jigsawed
     regions over every color fading into every other color.
 
-- The pigment catalog is expanded to 24 pigments.
-  - Added ochres/siennas/umbers, alizarin, vermilion, naphthol red,
-    prussian/phthalo/cerulean blues, phthalo green, and sap green.
-  - Cadmium red already existed in the parent catalog; the lab change is making
-    it an explicit role seed, not merely an optional nearest pigment.
+- S3.b now persists a target-derived cell graph.
+  - `cell_labels.npy` gives every target pixel a region id.
+  - `cell_graph.json` stores per-cell RGB/Lab summaries, tone/hue role hints,
+    adjacency, area, and paper delta.
+  - S6.b consumes this persisted graph rather than re-segmenting.
 
-- The MCP surface now includes `suggest_pigment_mix`.
-  - Input: target hex color.
-  - Output: ranked premix ratios using one to three catalog pigments.
-  - The output is bench guidance, not an overprint physics claim.
+- S6.c now performs Delta-E-guarded printability repair.
+  - Tiny islands and noisy mask fragments are repaired before vectorization.
+  - Repair is rejected when the rendered color shift is too large.
+  - `score_printability` reports component pressure, tiny-island pressure,
+    partial-cell pressure, overlap pressure, and low-alpha pressure.
+
+- The pigment/wash library is now flexible and adaptive.
+  - The base table has expanded to 36 entries, including natural/synthetic
+    pigment anchors and pale wash/premix roles.
+  - The table is not a fixed historical claim; it is an expandable optimizer
+    and bench-mixing vocabulary.
+  - `suggest_pigment_mix` gives one-to-three-pigment premix starting ratios for
+    colors that do not deserve a new fixed catalog entry.
+
+- The MCP surface now includes production-planning introspection.
+  - `cell_at(plan_id, x, y)`
+  - `inspect_cell(plan_id, cell_id)`
+  - `score_printability(plan_id)`
+  - `propose_plate_reorganization(plan_id)`
+  - `plan_production_batches(plan_id, detail_slots=16)`
+
+- The validation runner now emits review artifacts.
+  - final composite
+  - cumulative pulls
+  - alpha masks
+  - cell graph preview
+  - production batch plan
+  - production-pull carousel slides
+  - clean output folders for visual review
+
+Latest full regression for this surface: 109 tests passing.
+
+## Latest Validation Read
+
+Current validation run:
+
+```text
+chuck-batch-production-carousel-v2-fast-m10-main-20260514-1735
+```
+
+Artifacts:
+
+```text
+/srv/woodblock-share/chuck-clean-outputs/chuck-batch-production-carousel-v2-fast-m10-main-20260514-1735
+/srv/woodblock-share/chuck-carousel-slides/chuck-batch-production-carousel-v2-fast-m10-main-20260514-1735
+```
+
+The run proves that the current toolchain works end-to-end and that the review
+carousel can show both production-batch pulls and flat solver pulls. It does
+not prove that the algorithm is good enough yet. The latest batch proposal is
+more legible structurally, but the rendered match remains behind the older
+9-pull benchmark.
+
+That means the next change should move batch structure into the optimizer
+rather than treating production planning as a post-solve annotation.
 
 ## Next Experiments
 
-1. Replace mid-layer grids with superpixel or brushed-zone regions.
+1. Add a staged hierarchical solver.
+   Solve batch 1 light supports, then batch 2 color/depth, then batch 3
+   detail/key. Freeze or softly constrain earlier batches as later batches are
+   solved.
+
+2. Add bounded feedback from batch composites.
+   After all batches render, allow early batches to move only inside a
+   low-frequency trust region. This captures the useful two-layer/hierarchical
+   idea without letting later residuals turn support plates into pixel noise.
+
+3. Replace mid-layer grids with superpixel or brushed-zone regions.
    The mid layer should optimize region opacities, not free pixels.
 
-2. Add a hard jigsaw assignment mode.
+4. Add a hard jigsaw assignment mode.
    Adjacent hue-shift regions should be mutually exclusive inside a plate group,
    except for deliberate overprint support layers.
 
-3. Add base-role topology gates.
+5. Add base-role topology gates.
    Reject any run where the first broad-role underlayer has too many disconnected
    components, unsupported detail outside the support envelope, or too little
    coherent coverage.
 
-4. Add a separate chroma-role acceptance check.
+6. Add a separate chroma-role acceptance check.
    Red should appear as its own region plate when the input has meaningful red
    signal, but the same rule should apply to blue/green/pink/orange accents in
    other images.
 
-5. Integrate mix recipes into plate metadata.
+7. Integrate mix recipes into plate metadata.
    When a generated pigment is a premix, downstream recipe/export should report
    ratios and keep the plate identity as a mixed color role.
 
-6. Add a production expansion stage.
-   Expand solver roles into many jigsaw block regions and repeated pulls. The
-   first target is to make the planner capable of representing Emma-scale
-   complexity, not compressing it down to 9-10 blocks.
+8. Make the production expansion stage solver-aware.
+   The current stage proposes 4 + 4 + detail batches after solving. The next
+   stage should optimize those batch composites directly and then distribute
+   changes back into their underlying plates.
 
-7. Run the full shared-example validation loop.
+9. Run the full shared-example validation loop.
    Use `/srv/woodblock-share/Examples` and the current Emma input. Compare
    cumulative pulls against the reference construction, not only final Delta E.
 

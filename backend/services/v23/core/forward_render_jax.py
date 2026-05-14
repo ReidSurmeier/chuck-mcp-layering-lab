@@ -7,8 +7,8 @@ w.r.t. the alpha tensor.
 
 Ship-mode (this file): pure-JAX RGB-space stack, no external Mixbox
 dependency. The layering-lab catalog starts from the historical 13-pigment
-set and adds common natural/synthetic print pigments so experiments can force
-explicit red, ochre, brown, and blue-green roles.
+set, adds common natural/synthetic print pigments, and includes premix/wash
+roles so the study solver is not boxed into a tiny fixed pigment set.
 
 When the Scrtwpns Mixbox C library is available on the GPU host, a
 pre-built trilinear LUT at ``~/.woodblock/v23/luts/mixbox_q32.npz`` is
@@ -52,6 +52,18 @@ PIGMENT_NAMES: tuple[str, ...] = (
     "cerulean_blue",
     "phthalo_green",
     "sap_green",
+    "pale_rose_wash",
+    "peach_wash",
+    "warm_cream_wash",
+    "porcelain_pink_wash",
+    "mint_cyan_wash",
+    "sky_cyan_wash",
+    "lavender_wash",
+    "green_gold",
+    "rose_lilac_wash",
+    "periwinkle_blue",
+    "blue_grey_wash",
+    "warm_grey_wash",
 )
 
 # Per-pigment sRGB anchors. Vendored here so the module stays self-contained
@@ -82,6 +94,18 @@ PIGMENT_RGB_255: NDArray[np.uint8] = np.array(
         (42, 125, 186),   # 21 cerulean_blue
         (0, 89, 76),      # 22 phthalo_green
         (80, 125, 42),    # 23 sap_green
+        (255, 157, 178),  # 24 pale_rose_wash
+        (255, 178, 140),  # 25 peach_wash
+        (251, 228, 148),  # 26 warm_cream_wash
+        (255, 246, 247),  # 27 porcelain_pink_wash
+        (183, 237, 223),  # 28 mint_cyan_wash
+        (160, 218, 232),  # 29 sky_cyan_wash
+        (196, 178, 234),  # 30 lavender_wash
+        (172, 169, 64),   # 31 green_gold
+        (255, 179, 226),  # 32 rose_lilac_wash
+        (66, 108, 206),   # 33 periwinkle_blue
+        (120, 150, 170),  # 34 blue_grey_wash
+        (170, 156, 137),  # 35 warm_grey_wash
     ],
     dtype=np.uint8,
 )

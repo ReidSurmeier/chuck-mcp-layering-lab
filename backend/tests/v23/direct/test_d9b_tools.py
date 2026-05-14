@@ -148,8 +148,10 @@ def test_get_pigments_returns_layering_lab_catalog() -> None:
     from backend.mcp.tools import introspection
     r = introspection.get_pigments()
     assert r.ok is True
-    assert r.data["count"] == 24
-    assert r.data["catalog"] == "chuck_layering_lab_24"
+    assert r.data["count"] >= 36
+    assert r.data["catalog"] == "chuck_layering_lab_flexible"
+    pigment_ids = {p["pigment_id"] for p in r.data["pigments"]}
+    assert {"warm_cream_wash", "pale_rose_wash", "mint_cyan_wash"} <= pigment_ids
 
 
 def test_suggest_pigment_mix_returns_ratios() -> None:
@@ -315,11 +317,12 @@ def test_compare_render_tiers_returns_dE_deltas() -> None:
 # Full surface count — addendum-v5 lock
 
 def test_tier_modules_export_expected_tool_counts() -> None:
-    from backend.mcp.tools import calibration, carve, hitl, introspection, overlay, session
+    from backend.mcp.tools import calibration, carve, hitl, introspection, overlay, planning, session
     expected = {
-        hitl: 10,           # 8 listed + 2 aliases
+        hitl: 11,           # 8 listed + 2 aliases + cell reorganization proposal
         calibration: 5,
-        introspection: 7,
+        introspection: 10,  # 7 legacy + cell_at/inspect_cell/score_printability
+        planning: 1,
         session: 4,
         carve: 3,
         overlay: 4,

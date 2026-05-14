@@ -960,6 +960,195 @@ def adjust_pull_groups(plan_id: str, hints: dict[str, Any]) -> ToolResult[dict[s
     })
 
 
+def _role_layout_counts(m: int) -> tuple[int, int, int]:
+    if m <= 2:
+        return 0, 0, m
+    if m <= 4:
+        return 1, max(0, m - 2), 1
+    detail_count = 2
+    under_count = min(3, m - detail_count)
+    mid_count = max(0, m - under_count - detail_count)
+    return under_count, mid_count, detail_count
+
+
+def propose_plate_reorganization(
+    plan_id: str,
+    objective: Literal["printable_jigsaw", "hue_control"] = "printable_jigsaw",
+    max_actions: int = 16,
+) -> ToolResult[dict[str, Any]]:
+    """Propose cell-graph plate organization changes without mutating the plan.
+
+    This is the region-first counterpart to direct alpha editing. It reads the
+    persisted cell graph, scores middle-pull conflicts per cell, and writes a
+    candidate JSON that a later apply step can turn into a new plan.
+    """
+    if objective not in ("printable_jigsaw", "hue_control"):
+        return ToolResult(ok=False, data=None, errors=[
+            WoodblockError(tier="refusal", code="INVALID_OBJECTIVE",
+                           message="objective must be printable_jigsaw or hue_control",
+                           recoverable=True),
+        ])
+    max_actions = max(1, min(int(max_actions), 64))
+
+    import json
+    from pathlib import Path
+
+    import numpy as np
+
+    from backend.services.v23 import orchestrator as _orch
+
+    try:
+        plan = _orch.load_plan(plan_id)
+    except _orch.OrchestratorError as exc:
+        return ToolResult(ok=False, data=None, errors=[exc.error])
+    if not plan.alpha_stack_path or not Path(plan.alpha_stack_path).is_file():
+        return ToolResult(ok=False, data=None, errors=[
+            WoodblockError(tier="refusal", code="NO_SOLVER_OUTPUT",
+                           message="plan has no alpha_stack to reorganize",
+                           recoverable=True),
+        ])
+    if not plan.cell_graph_path or not plan.cell_labels_path:
+        return ToolResult(ok=False, data=None, errors=[
+            WoodblockError(tier="refusal", code="NO_CELL_GRAPH",
+                           message="plan has no persisted cell graph",
+                           recoverable=True),
+        ])
+    graph_path = Path(plan.cell_graph_path)
+    labels_path = Path(plan.cell_labels_path)
+    if not graph_path.is_file() or not labels_path.is_file():
+        return ToolResult(ok=False, data=None, errors=[
+            WoodblockError(tier="refusal", code="CELL_GRAPH_MISSING",
+                           message="cell_graph_path or cell_labels_path no longer exists",
+                           recoverable=True),
+        ])
+
+    alpha_stack = np.load(plan.alpha_stack_path)
+    labels = np.load(labels_path)
+    graph = json.loads(graph_path.read_text())
+    cells = {int(c["cell_id"]): c for c in graph.get("cells", [])}
+    under_count, mid_count, detail_count = _role_layout_counts(alpha_stack.shape[0])
+    mid_start = under_count
+    mid_end = under_count + mid_count
+    candidate_id = f"{plan_id}_reorg_{int(time.time() * 1000) % 100000}"
+
+    assignments = [0 for _ in range(mid_count)]
+    conflict_cells: list[dict[str, Any]] = []
+    inactive_cells = 0
+    active_cells = 0
+    if mid_count:
+        for cell_id in np.unique(labels).tolist():
+            cell = labels == int(cell_id)
+            means = alpha_stack[mid_start:mid_end, cell].mean(axis=1)
+            order = np.argsort(means)[::-1]
+            best = int(order[0])
+            best_mean = float(means[best])
+            second = int(order[1]) if len(order) > 1 else best
+            second_mean = float(means[second]) if len(order) > 1 else 0.0
+            if best_mean < 0.035:
+                inactive_cells += 1
+                continue
+            active_cells += 1
+            assignments[best] += 1
+            if second_mean >= 0.035 and second_mean / max(best_mean, 1e-6) >= 0.45:
+                meta = cells.get(int(cell_id), {})
+                conflict_cells.append({
+                    "cell_id": int(cell_id),
+                    "area_px": int(meta.get("area_px", int(cell.sum()))),
+                    "winner_mid_slot": best,
+                    "winner_impression_index": mid_start + best,
+                    "winner_mean_alpha": round(best_mean, 4),
+                    "competing_mid_slot": second,
+                    "competing_impression_index": mid_start + second,
+                    "competing_mean_alpha": round(second_mean, 4),
+                    "target_hex": meta.get("mean_hex"),
+                    "role_hint": meta.get("role_hint"),
+                })
+    else:
+        inactive_cells = int(np.unique(labels).size)
+
+    conflict_cells.sort(
+        key=lambda c: c["area_px"] * c["competing_mean_alpha"],
+        reverse=True,
+    )
+
+    actions: list[dict[str, Any]] = []
+    for cell in conflict_cells[:max_actions]:
+        actions.append({
+            "action": "make_cell_exclusive",
+            "cell_id": cell["cell_id"],
+            "keep_impression_index": cell["winner_impression_index"],
+            "suppress_impression_index": cell["competing_impression_index"],
+            "reason": "middle color overlap inside one printable cell",
+        })
+
+    # Flag plates that are doing too many hue jobs; those should split by cell
+    # hue bands rather than becoming one hard-to-ink jigsaw plate.
+    for offset in range(mid_count):
+        slot_cells = [
+            cells[int(cid)] for cid in np.unique(labels).tolist()
+            if int(cid) in cells
+            and float(alpha_stack[mid_start + offset, labels == int(cid)].mean()) >= 0.035
+        ]
+        if len(slot_cells) < 8:
+            continue
+        hues = np.asarray([float(c.get("hue_deg", 0.0)) for c in slot_cells], dtype=np.float32)
+        chroma = np.asarray([float(c.get("chroma_ab", 0.0)) for c in slot_cells], dtype=np.float32)
+        hue_span = float(np.percentile(hues, 90) - np.percentile(hues, 10))
+        if hue_span > 70.0 and float(np.mean(chroma)) > 18.0:
+            actions.append({
+                "action": "split_plate_by_cell_hue",
+                "impression_index": mid_start + offset,
+                "cell_count": len(slot_cells),
+                "hue_span_p10_p90": round(hue_span, 2),
+                "reason": "one middle plate spans multiple hue roles",
+            })
+        if len(actions) >= max_actions:
+            break
+
+    repeat_candidates = []
+    for i, alpha in enumerate(alpha_stack):
+        coverage = float((alpha > 0.08).mean() * 100.0)
+        mean_alpha = float(alpha[alpha > 0.08].mean()) if (alpha > 0.08).any() else 0.0
+        if coverage > 8.0 and 0.38 <= mean_alpha <= 0.72:
+            pid = int(plan.pigment_idx[i]) if i < len(plan.pigment_idx) else -1
+            repeat_candidates.append({
+                "impression_index": i,
+                "pigment_name": (
+                    _PIGMENT_NAMES[pid] if 0 <= pid < len(_PIGMENT_NAMES) else f"pigment_{pid}"
+                ),
+                "coverage_pct": round(coverage, 3),
+                "mean_active_alpha": round(mean_alpha, 4),
+                "reason": "may be cleaner as repeated pull/load adjustment than a new hue plate",
+            })
+
+    payload = {
+        "candidate_id": candidate_id,
+        "plan_id": plan_id,
+        "objective": objective,
+        "cell_count": int(len(cells)),
+        "active_cell_count": int(active_cells),
+        "inactive_cell_count": int(inactive_cells),
+        "role_layout": {
+            "under_count": under_count,
+            "mid_count": mid_count,
+            "detail_count": detail_count,
+        },
+        "assigned_cells_by_mid_slot": assignments,
+        "conflict_cell_count": len(conflict_cells),
+        "top_conflict_cells": conflict_cells[:max_actions],
+        "recommended_actions": actions[:max_actions],
+        "repeat_pull_candidates": repeat_candidates[:max_actions],
+        "mutation_applied": False,
+    }
+    candidate_path = Path(plan.alpha_stack_path).parent / f"{candidate_id}.json"
+    candidate_path.write_text(json.dumps(payload, indent=2, sort_keys=True))
+
+    return ToolResult(ok=True, data={
+        **payload,
+        "candidate_path": str(candidate_path),
+    })
+
+
 def simplify_masks_for_carving(plan_id: str) -> ToolResult[dict[str, Any]]:
     """Post-solve topology repair (addendum-v3 fix 1 home) — real morph pass."""
     from pathlib import Path as _Path
@@ -1025,5 +1214,6 @@ __all__ = [
     "pin_region", "alternative_stacks", "generate_stack_candidates",
     "compare_plans", "compare_alternate_recipes",
     "merge_impressions", "merge_impressions_by_hue_family",
-    "split_impression", "adjust_pull_groups", "simplify_masks_for_carving",
+    "split_impression", "adjust_pull_groups", "propose_plate_reorganization",
+    "simplify_masks_for_carving",
 ]

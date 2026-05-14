@@ -23,6 +23,8 @@ from backend.services.v23.core import forward_render_jax
 _ACTIVE_THRESHOLD = 0.035
 _MAX_SEGMENT_PIXELS = 850_000
 _TINT_RECOVERY_PIGMENTS = frozenset({0, 1, 3, 13, 14, 17, 21, 23})
+_ADAPTIVE_PIGMENT_START = 24
+_SUPPORT_PIGMENTS = frozenset({0, 1, 2, 13, 14, 21, 23, 26, 31})
 
 
 @dataclass(frozen=True)
@@ -48,11 +50,22 @@ class _RoleLayout:
         return self.under_count + self.mid_count
 
 
-def _role_layout(m: int) -> _RoleLayout:
+def _role_layout(m: int, pigment_idx: NDArray[np.int32] | None = None) -> _RoleLayout:
     if m <= 2:
         return _RoleLayout(under_count=0, mid_count=0, detail_count=m)
     if m <= 4:
         return _RoleLayout(under_count=1, mid_count=max(0, m - 2), detail_count=1)
+    if pigment_idx is not None and any(
+        int(pid) >= _ADAPTIVE_PIGMENT_START for pid in pigment_idx.tolist()
+    ):
+        detail_count = 2
+        support_count = sum(1 for pid in pigment_idx.tolist() if int(pid) in _SUPPORT_PIGMENTS)
+        under_count = min(3, max(1, support_count), m - detail_count)
+        return _RoleLayout(
+            under_count=under_count,
+            mid_count=max(0, m - under_count - detail_count),
+            detail_count=detail_count,
+        )
     detail_count = 2
     under_count = min(3, m - detail_count)
     mid_count = max(0, m - under_count - detail_count)
@@ -229,6 +242,7 @@ def organize_jigsaw_regions(
     pigment_idx: NDArray[np.int32],
     *,
     target_rgb: NDArray[np.float32],
+    cell_labels: NDArray[np.int32] | None = None,
     n_segments: int | None = None,
     min_region_px: int = 96,
     activity_threshold: float = _ACTIVE_THRESHOLD,
@@ -250,9 +264,14 @@ def organize_jigsaw_regions(
             f"target_rgb shape {target_rgb.shape[:2]} must match alpha {(h, w)}"
         )
 
-    layout = _role_layout(m)
     pigment_idx = pigment_idx.astype(np.int32)
-    labels = _segment_image(target_rgb.astype(np.float32), n_segments=n_segments)
+    layout = _role_layout(m, pigment_idx)
+    if cell_labels is not None:
+        if cell_labels.shape != (h, w):
+            raise ValueError(f"cell_labels shape {cell_labels.shape!r} must match {(h, w)!r}")
+        labels = cell_labels.astype(np.int32)
+    else:
+        labels = _segment_image(target_rgb.astype(np.float32), n_segments=n_segments)
     if layout.mid_count <= 1:
         recovered, recovery = _recover_near_paper_tints(
             alpha_stack.astype(np.float32),

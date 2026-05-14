@@ -91,7 +91,7 @@ def test_pigment_table_matches_named_catalog() -> None:
     assert forward_render_jax.PIGMENT_TABLE.shape == (
         len(forward_render_jax.PIGMENT_NAMES), 3
     )
-    assert len(forward_render_jax.PIGMENT_NAMES) == 24
+    assert len(forward_render_jax.PIGMENT_NAMES) == 36
     assert forward_render_jax.PIGMENT_TABLE.min() >= 0.0
     assert forward_render_jax.PIGMENT_TABLE.max() <= 1.0
 

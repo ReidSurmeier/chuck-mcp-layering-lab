@@ -43,7 +43,8 @@ _MID_CONTROL_FACTOR = 4
 _UNDER_TARGET_STRENGTH = 0.42
 _MID_TARGET_STRENGTH = 0.72
 _JIGSAW_OVERLAP_WEIGHT = 0.012
-_SUPPORT_PIGMENTS = frozenset({0, 1, 13, 14, 21, 23})
+_ADAPTIVE_PIGMENT_START = 24
+_SUPPORT_PIGMENTS = frozenset({0, 1, 2, 13, 14, 21, 23, 26, 31})
 _DARK_KEY_PIGMENTS = frozenset({11, 12, 15, 19, 20})
 
 
@@ -189,6 +190,22 @@ def _role_layout(m: int) -> _RoleLayout:
         return _RoleLayout(under_count=1, mid_count=max(0, m - 2), detail_count=1)
     detail_count = 2
     under_count = min(3, m - detail_count)
+    mid_count = max(0, m - under_count - detail_count)
+    return _RoleLayout(
+        under_count=under_count,
+        mid_count=mid_count,
+        detail_count=detail_count,
+    )
+
+
+def _role_layout_for_pigments(pigment_idx: NDArray[np.int32]) -> _RoleLayout:
+    """Use pigment role hints when adaptive premix/wash slots are present."""
+    m = int(len(pigment_idx))
+    if m <= 4 or not any(int(pid) >= _ADAPTIVE_PIGMENT_START for pid in pigment_idx.tolist()):
+        return _role_layout(m)
+    detail_count = 2
+    support_count = sum(1 for pid in pigment_idx.tolist() if int(pid) in _SUPPORT_PIGMENTS)
+    under_count = min(3, max(1, support_count), m - detail_count)
     mid_count = max(0, m - under_count - detail_count)
     return _RoleLayout(
         under_count=under_count,
@@ -558,7 +575,7 @@ def run_s5_solver(
         solve_profile=solve_profile,
     )
 
-    layout = _role_layout(m)
+    layout = _role_layout_for_pigments(pigment_ordered)
     params = _make_role_params(alpha_solve, layout)
     target_j = jnp.asarray(target_solve, dtype=jnp.float32)
     pigments_j = jnp.asarray(pigment_ordered, dtype=jnp.int32)

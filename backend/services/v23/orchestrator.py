@@ -27,11 +27,13 @@ from backend.services.v23.core import templates as _templates
 from backend.services.v23.stages import (
     s1_ingest,
     s2_sam,
+    s3b_cell_graph,
     s3_hue_family,
     s4_warmstart,
     s5_solver,
     s6_three_state_mask,
     s6b_jigsaw_organize,
+    s6c_printability_repair,
     s7_block_pack,
 )
 
@@ -59,6 +61,9 @@ class PartialPlan:
     suggested_template: str | None
     template_confidence: float
     template_reason: str
+    cell_graph_path: str | None = None
+    cell_labels_path: str | None = None
+    cell_graph_summary: dict[str, Any] = field(default_factory=dict)
     m_prior: int | None = None
     solver_status: str = "IMPL_PENDING"
     impressions: list[dict[str, Any]] = field(default_factory=list)
@@ -77,6 +82,7 @@ class PartialPlan:
     raw_alpha_stack_path: str | None = None
     pigment_idx: list[int] = field(default_factory=list)
     jigsaw_summary: dict[str, Any] = field(default_factory=dict)
+    printability_repair_summary: dict[str, Any] = field(default_factory=dict)
     created_at: str = ""
 
 
@@ -172,6 +178,22 @@ def run_pipeline_partial(
 
     # Template suggestion (measurable hints only — Opus picks)
     suggestion = _templates.suggest_template(family_areas=s3.family_areas)
+    plan_id = f"plan_{int(time.time() * 1000)}_{handle.image_sha256[:8]}"
+    pdir = _plan_dir(handle.session_id, plan_id)
+
+    # S3.b — printable-region graph. This is intentionally upstream of the
+    # solver so all downstream organization works from one stable cell map.
+    cell_graph_path: str | None = None
+    cell_labels_path: str | None = None
+    cell_graph_summary: dict[str, Any] = {}
+    cell_graph_labels: Any = None
+    if os.environ.get("WOODBLOCK_DISABLE_CELL_GRAPH") != "1":
+        cell_graph = s3b_cell_graph.build_cell_graph(handle.array)
+        persisted = s3b_cell_graph.persist_cell_graph(cell_graph, pdir)
+        cell_graph_path = persisted["cell_graph_path"]
+        cell_labels_path = persisted["cell_labels_path"]
+        cell_graph_summary = cell_graph.diagnostics
+        cell_graph_labels = cell_graph.labels
 
     # S4 + S5 — Tan warm-start + JAX L-BFGS inverse solver.
     # ``WOODBLOCK_DISABLE_SOLVER=1`` env bypasses S4+S5 (test ring default).
@@ -192,6 +214,7 @@ def run_pipeline_partial(
     raw_alpha_stack_path: str | None = None
     pigment_idx_list: list[int] = []
     jigsaw_summary: dict[str, Any] = {}
+    printability_repair_summary: dict[str, Any] = {}
     if os.environ.get("WOODBLOCK_DISABLE_SOLVER") != "1":
         try:
             import numpy as _np
@@ -228,9 +251,16 @@ def run_pipeline_partial(
                 solve_result.alpha_stack,
                 _np.asarray(solve_result.pigment_idx, dtype="int32"),
                 target_rgb=target,
+                cell_labels=cell_graph_labels,
             )
-            final_alpha_stack = organized.alpha_stack
+            repair = s6c_printability_repair.repair_for_printability(
+                organized.alpha_stack,
+                _np.asarray(solve_result.pigment_idx, dtype="int32"),
+                target_rgb=target,
+            )
+            final_alpha_stack = repair.alpha_stack
             jigsaw_summary = organized.diagnostics
+            printability_repair_summary = repair.diagnostics
             impressions = s5_solver.summarise_impressions(
                 final_alpha_stack,
                 solve_result.pigment_idx,
@@ -252,8 +282,6 @@ def run_pipeline_partial(
 
             # Persist state_stack + alpha_stack + pigment_idx as .npy under the
             # plan dir so downstream tools render per-pixel accurate composites.
-            plan_id_preview = f"plan_{int(time.time() * 1000)}_{handle.image_sha256[:8]}"
-            pdir = _plan_dir(handle.session_id, plan_id_preview)
             state_path = pdir / "state_stack.npy"
             alpha_path = pdir / "alpha_stack.npy"
             raw_alpha_path = pdir / "alpha_stack_raw_solver.npy"
@@ -278,7 +306,6 @@ def run_pipeline_partial(
         except Exception:
             solver_status = "FAILED"
 
-    plan_id = f"plan_{int(time.time() * 1000)}_{handle.image_sha256[:8]}"
     plan = PartialPlan(
         plan_id=plan_id,
         session_id=handle.session_id,
@@ -290,6 +317,9 @@ def run_pipeline_partial(
         family_areas=s3.family_areas,
         dominant_family=s3.dominant_family,
         hue_family_map_path=str(s3.label_map_path) if s3.label_map_path else None,
+        cell_graph_path=cell_graph_path,
+        cell_labels_path=cell_labels_path,
+        cell_graph_summary=cell_graph_summary,
         sam_regions=sam_regions,
         suggested_template=strategy_template or suggestion.template_id,
         template_confidence=suggestion.confidence,
@@ -312,6 +342,7 @@ def run_pipeline_partial(
         raw_alpha_stack_path=raw_alpha_stack_path,
         pigment_idx=pigment_idx_list,
         jigsaw_summary=jigsaw_summary,
+        printability_repair_summary=printability_repair_summary,
         created_at=_now_iso(),
     )
     _persist_plan(plan)

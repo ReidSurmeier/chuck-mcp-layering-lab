@@ -58,6 +58,32 @@ def test_jigsaw_organization_preserves_under_and_detail_roles() -> None:
     np.testing.assert_allclose(result.alpha_stack[-2:], alpha[-2:])
 
 
+def test_jigsaw_organization_uses_adaptive_support_roles_for_layout() -> None:
+    from backend.services.v23.stages.s6b_jigsaw_organize import organize_jigsaw_regions
+
+    alpha = np.zeros((8, 64, 64), dtype=np.float32)
+    alpha[0:2] = 0.12
+    alpha[2, :, 8:42] = 0.55
+    alpha[3, :, 22:56] = 0.52
+    alpha[4, 10:54, 12:52] = 0.48
+    alpha[5, 20:44, 20:44] = 0.35
+    alpha[6, 18:46, 18:46] = 0.30
+    alpha[7, 28:36, 28:36] = 0.80
+
+    result = organize_jigsaw_regions(
+        alpha,
+        np.array([26, 31, 27, 28, 25, 17, 20, 12], dtype=np.int32),
+        target_rgb=_target(),
+        n_segments=90,
+        min_region_px=12,
+    )
+
+    assert result.diagnostics["under_count"] == 2
+    assert result.diagnostics["mid_count"] == 4
+    np.testing.assert_allclose(result.alpha_stack[:2], alpha[:2])
+    np.testing.assert_allclose(result.alpha_stack[-2:], alpha[-2:])
+
+
 def test_jigsaw_organization_recovers_near_paper_tint_cells() -> None:
     from backend.services.v23.stages.s6b_jigsaw_organize import organize_jigsaw_regions
 

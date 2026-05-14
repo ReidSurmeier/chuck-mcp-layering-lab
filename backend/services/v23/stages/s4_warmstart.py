@@ -22,20 +22,22 @@ from backend.algorithms.decomposition import tan_rgb_geometry as _tan
 from backend.services.v23.core import color as _color
 from backend.services.v23.core import forward_render_jax as _fr
 
-_LIGHT_UNDERLAYER_PIGMENTS = (0, 1, 2, 13, 14, 21, 23)
+_LIGHT_UNDERLAYER_PIGMENTS = (
+    0, 1, 2, 13, 14, 21, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 34, 35,
+)
 _SUBTLE_TINT_PIGMENTS: tuple[tuple[str, tuple[int, ...]], ...] = (
-    ("cool", (21, 7, 20, 6)),
-    ("pink", (17, 3, 16, 4)),
-    ("green", (23, 8, 22)),
-    ("warm", (13, 14, 1, 0)),
+    ("cool", (28, 29, 34, 30, 21, 7, 20, 6)),
+    ("pink", (27, 24, 32, 17, 3, 16, 4)),
+    ("green", (28, 31, 23, 8, 22)),
+    ("warm", (26, 25, 13, 14, 1, 0, 2)),
 )
 _PIGMENT_GROUPS = (
-    (0, 1, 13),          # yellow / ochre
-    (2, 10, 14, 15),     # orange / earth
-    (3, 16, 17, 18),     # reds
-    (4, 5),              # magenta / violet
-    (6, 7, 19, 20, 21),  # blues
-    (8, 9, 22, 23),      # greens
+    (0, 1, 13, 26, 31),              # yellow / ochre / green-gold
+    (2, 10, 14, 15, 25, 35),         # orange / earth / warm grey
+    (3, 16, 17, 18, 24, 27, 32),     # reds / pink washes
+    (4, 5, 30),                      # magenta / violet
+    (6, 7, 19, 20, 21, 29, 33, 34),  # blues / cool washes
+    (8, 9, 22, 23, 28, 31),          # greens / mint
     (11, 12),            # umber / key
 )
 _CHROMA_PLATE_PIGMENTS = tuple(
@@ -220,6 +222,21 @@ def _weighted_mean_rgb(
     return (arr * weights[..., None]).sum(axis=(0, 1)) / total
 
 
+def _support_weighted_mean_rgb(
+    rgb: NDArray[np.uint8],
+    alpha: NDArray[np.float32],
+) -> NDArray[np.float32]:
+    """Mean color for first support roles, biased away from dark key structure."""
+    arr = rgb.astype(np.float32) / 255.0
+    luminance = 0.299 * arr[..., 0] + 0.587 * arr[..., 1] + 0.114 * arr[..., 2]
+    light_support = np.clip((luminance - 0.35) / 0.58, 0.0, 1.0) ** 2
+    weights = np.clip(alpha.astype(np.float32), 0.0, 1.0) * light_support
+    total = float(weights.sum())
+    if total <= 1e-6:
+        return _weighted_mean_rgb(rgb, alpha)
+    return (arr * weights[..., None]).sum(axis=(0, 1)) / total
+
+
 def _choose_nearest_pigment(
     rgb_01: NDArray[np.float32],
     candidates: tuple[int, ...],
@@ -231,7 +248,7 @@ def _choose_nearest_pigment(
     d2 = np.sum((pigments - rgb_01[None, :]) ** 2, axis=-1)
     if prefer_light:
         lum = 0.299 * pigments[:, 0] + 0.587 * pigments[:, 1] + 0.114 * pigments[:, 2]
-        d2 = d2 + 0.10 * (1.0 - lum)
+        d2 = d2 + 0.18 * (1.0 - lum)
     if prefer_dark:
         lum = 0.299 * pigments[:, 0] + 0.587 * pigments[:, 1] + 0.114 * pigments[:, 2]
         d2 = d2 + 0.12 * lum
@@ -277,13 +294,13 @@ def layering_lab_warmstart(
 
     role_alphas: list[NDArray[np.float32]] = []
     role_pigments: list[int] = []
-    suppress_tan_groups: list[int] = []
+    suppress_role_groups: list[int] = []
     suppress_tan_exact: set[int] = set()
 
     underlayer = _broad_underlayer_seed(rgb)
     underlayer_pid: int | None = None
     if float((underlayer > 0.08).mean()) >= 0.02:
-        underlayer_color = _weighted_mean_rgb(rgb, underlayer)
+        underlayer_color = _support_weighted_mean_rgb(rgb, underlayer)
         underlayer_pid = _choose_nearest_pigment(
             underlayer_color,
             _LIGHT_UNDERLAYER_PIGMENTS,
@@ -291,10 +308,11 @@ def layering_lab_warmstart(
         )
         role_alphas.append(underlayer)
         role_pigments.append(underlayer_pid)
-        suppress_tan_groups.append(underlayer_pid)
+        suppress_role_groups.append(underlayer_pid)
+        suppress_tan_exact.add(underlayer_pid)
 
     for tint_alpha, tint_pid in _subtle_tint_seeds(rgb):
-        if any(_same_pigment_group(tint_pid, pid) for pid in suppress_tan_groups):
+        if any(_same_pigment_group(tint_pid, pid) for pid in suppress_role_groups):
             continue
         if tint_pid in role_pigments:
             continue
@@ -310,7 +328,8 @@ def layering_lab_warmstart(
         if underlayer_pid is None or not _same_pigment_group(chroma_pid, underlayer_pid):
             role_alphas.append(chroma)
             role_pigments.append(chroma_pid)
-            suppress_tan_groups.append(chroma_pid)
+            suppress_role_groups.append(chroma_pid)
+            suppress_tan_exact.add(chroma_pid)
         else:
             chroma_pid = None
 
@@ -326,16 +345,13 @@ def layering_lab_warmstart(
         )
         role_alphas.append(key)
         role_pigments.append(key_pid)
-        suppress_tan_groups.append(key_pid)
+        suppress_role_groups.append(key_pid)
+        suppress_tan_exact.add(key_pid)
 
     explicit_seed_count = len(role_pigments)
 
     for alpha, pid in zip(base.alpha_stack, base.pigment_idx, strict=True):
         pid = int(pid)
-        if any(_same_pigment_group(pid, seed_pid) for seed_pid in suppress_tan_groups):
-            # Explicit role seeds own these families; Tan must not add another
-            # unlabeled copy that later appears as a duplicate pull.
-            continue
         if pid in suppress_tan_exact:
             continue
         role_alphas.append(alpha.astype(np.float32))

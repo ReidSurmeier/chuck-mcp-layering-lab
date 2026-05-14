@@ -1,6 +1,8 @@
 """D9B — Tier 3 introspection tools (read-only + pigment guidance)."""
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -10,7 +12,7 @@ from backend.services.v23.core import forward_render_jax
 
 
 def get_pigments() -> ToolResult[dict[str, Any]]:
-    """Return the Chuck layering-lab pigment catalog."""
+    """Return the Chuck layering-lab pigment and adaptive wash library."""
     pigments = []
     names = forward_render_jax.PIGMENT_NAMES
     for idx, name in enumerate(names):
@@ -22,7 +24,7 @@ def get_pigments() -> ToolResult[dict[str, Any]]:
             "hex": f"#{r:02x}{g:02x}{b:02x}",
         })
     return ToolResult(ok=True, data={"pigments": pigments, "count": len(pigments),
-                                     "catalog": "chuck_layering_lab_24"})
+                                     "catalog": "chuck_layering_lab_flexible"})
 
 
 def get_emma_priors() -> ToolResult[dict[str, Any]]:
@@ -73,7 +75,7 @@ def suggest_pigment_mix(
     return ToolResult(ok=True, data={
         "target_hex": _rgb_to_hex(target),
         "target_rgb": [round(float(v), 4) for v in target.tolist()],
-        "catalog": "chuck_layering_lab_24",
+        "catalog": "chuck_layering_lab_flexible",
         "recipes": recipes,
         "guidance": (
             "Ratios are premix starting points by volume/weight. Make swatches on "
@@ -408,5 +410,247 @@ def pigment_at(plan_id: str, x: int, y: int) -> ToolResult[dict[str, Any]]:
     })
 
 
+def _load_cell_graph(plan: Any) -> tuple[dict[str, Any], np.ndarray] | tuple[None, None]:
+    if not getattr(plan, "cell_graph_path", None) or not getattr(plan, "cell_labels_path", None):
+        return None, None
+    graph_path = Path(plan.cell_graph_path)
+    labels_path = Path(plan.cell_labels_path)
+    if not graph_path.is_file() or not labels_path.is_file():
+        return None, None
+    return json.loads(graph_path.read_text()), np.load(labels_path)
+
+
+def cell_at(plan_id: str, x: int, y: int) -> ToolResult[dict[str, Any]]:
+    """Return cell-graph region metadata at a target pixel."""
+    if x < 0 or y < 0:
+        return ToolResult(ok=False, data=None, errors=[
+            WoodblockError(tier="refusal", code="INVALID_COORDS",
+                           message=f"x and y must be >= 0, got ({x}, {y})",
+                           recoverable=True),
+        ])
+
+    from backend.services.v23 import orchestrator as _orch
+
+    try:
+        plan = _orch.load_plan(plan_id)
+    except _orch.OrchestratorError as exc:
+        return ToolResult(ok=False, data=None, errors=[exc.error])
+    if y >= plan.height or x >= plan.width:
+        return ToolResult(ok=False, data=None, errors=[
+            WoodblockError(tier="refusal", code="OUT_OF_BOUNDS",
+                           message=f"({x}, {y}) outside plan bounds {plan.width}x{plan.height}",
+                           recoverable=True),
+        ])
+
+    graph, labels = _load_cell_graph(plan)
+    if graph is None or labels is None:
+        return ToolResult(ok=True, data={"plan_id": plan_id, "x": x, "y": y, "cell": None},
+                          errors=[WoodblockError(
+                              tier="degraded", code="NO_CELL_GRAPH",
+                              message="plan has no persisted cell graph",
+                              recoverable=True,
+                          )])
+
+    cell_id = int(labels[y, x])
+    cells = {int(c["cell_id"]): c for c in graph.get("cells", [])}
+    return ToolResult(ok=True, data={
+        "plan_id": plan_id,
+        "x": x,
+        "y": y,
+        "cell_id": cell_id,
+        "cell": cells.get(cell_id),
+        "graph_summary": graph.get("diagnostics", {}),
+    })
+
+
+def _render_numpy(alpha_stack: np.ndarray, pigment_idx: np.ndarray) -> np.ndarray:
+    h, w = alpha_stack.shape[1:]
+    composite = np.broadcast_to(forward_render_jax.PAPER_RGB, (h, w, 3)).copy()
+    pigments = forward_render_jax.PIGMENT_TABLE[pigment_idx]
+    for alpha, pigment in zip(alpha_stack, pigments, strict=True):
+        a = np.clip(alpha[..., None], 0.0, 1.0)
+        composite = composite * (1.0 - a) + pigment[None, None, :] * a
+    return composite.astype(np.float32)
+
+
+def _rgb_to_hex(rgb: np.ndarray) -> str:
+    vals = np.clip(np.round(rgb * 255.0), 0, 255).astype(int).tolist()
+    return f"#{vals[0]:02x}{vals[1]:02x}{vals[2]:02x}"
+
+
+def inspect_cell(plan_id: str, cell_id: int) -> ToolResult[dict[str, Any]]:
+    """Inspect target/rendered color and active impressions for one cell."""
+    from backend.services.v23 import orchestrator as _orch
+
+    try:
+        plan = _orch.load_plan(plan_id)
+    except _orch.OrchestratorError as exc:
+        return ToolResult(ok=False, data=None, errors=[exc.error])
+
+    graph, labels = _load_cell_graph(plan)
+    if graph is None or labels is None:
+        return ToolResult(ok=True, data={"plan_id": plan_id, "cell_id": cell_id, "cell": None},
+                          errors=[WoodblockError(
+                              tier="degraded", code="NO_CELL_GRAPH",
+                              message="plan has no persisted cell graph",
+                              recoverable=True,
+                          )])
+    cells = {int(c["cell_id"]): c for c in graph.get("cells", [])}
+    if int(cell_id) not in cells:
+        return ToolResult(ok=False, data=None, errors=[
+            WoodblockError(tier="refusal", code="UNKNOWN_CELL_ID",
+                           message=f"cell_id {cell_id!r} not in plan {plan_id}",
+                           recoverable=True),
+        ])
+
+    mask = labels == int(cell_id)
+    rows: list[dict[str, Any]] = []
+    rendered_mean = None
+    target_mean = None
+    d_e = None
+    if plan.alpha_stack_path and Path(plan.alpha_stack_path).is_file():
+        alpha_stack = np.load(plan.alpha_stack_path)
+        pigment_idx = np.asarray(plan.pigment_idx, dtype=np.int32)
+        for i, alpha in enumerate(alpha_stack):
+            mean_alpha = float(alpha[mask].mean()) if mask.any() else 0.0
+            if mean_alpha < 0.005:
+                continue
+            pid = int(pigment_idx[i]) if i < len(pigment_idx) else -1
+            rows.append({
+                "order_step": i + 1,
+                "impression_id": (
+                    plan.impressions[i].get("id", f"imp_{i + 1:03d}")
+                    if i < len(plan.impressions) else f"imp_{i + 1:03d}"
+                ),
+                "pigment_id": pid,
+                "pigment_name": (
+                    _PIGMENT_NAMES[pid] if 0 <= pid < len(_PIGMENT_NAMES) else f"pigment_{pid}"
+                ),
+                "mean_alpha": round(mean_alpha, 4),
+                "coverage_in_cell_pct": round(float((alpha[mask] > 0.05).mean() * 100.0), 3),
+            })
+
+        target_path = Path(plan.alpha_stack_path).parent / "target.npy"
+        if target_path.is_file():
+            rendered = _render_numpy(alpha_stack, pigment_idx)
+            target = np.load(target_path)
+            rendered_mean = rendered[mask].mean(axis=0)
+            target_mean = target[mask].mean(axis=0)
+            d_e = _delta_e76(tuple(target_mean.tolist()), tuple(rendered_mean.tolist()))
+
+    return ToolResult(ok=True, data={
+        "plan_id": plan_id,
+        "cell_id": int(cell_id),
+        "cell": cells[int(cell_id)],
+        "active_impressions": rows,
+        "target_mean_hex": _rgb_to_hex(target_mean) if target_mean is not None else None,
+        "rendered_mean_hex": _rgb_to_hex(rendered_mean) if rendered_mean is not None else None,
+        "cell_delta_e76": round(float(d_e), 3) if d_e is not None else None,
+    })
+
+
+def score_printability(plan_id: str) -> ToolResult[dict[str, Any]]:
+    """Score carve/inking printability before SVG export."""
+    from scipy import ndimage as _ndi
+
+    from backend.services.v23 import orchestrator as _orch
+
+    try:
+        plan = _orch.load_plan(plan_id)
+    except _orch.OrchestratorError as exc:
+        return ToolResult(ok=False, data=None, errors=[exc.error])
+    if not plan.alpha_stack_path or not Path(plan.alpha_stack_path).is_file():
+        return ToolResult(ok=False, data=None, errors=[
+            WoodblockError(tier="refusal", code="NO_SOLVER_OUTPUT",
+                           message="plan has no alpha_stack to score",
+                           recoverable=True),
+        ])
+
+    alpha_stack = np.load(plan.alpha_stack_path)
+    graph, labels = _load_cell_graph(plan)
+    active_threshold = 0.08
+    tiny_px = 60
+    per_impression: list[dict[str, Any]] = []
+    tiny_total = 0
+    component_total = 0
+    partial_cell_total = 0
+    for i, alpha in enumerate(alpha_stack):
+        active = alpha >= active_threshold
+        cc, ncomp = _ndi.label(active)
+        sizes = np.bincount(cc.ravel())[1:]
+        tiny = int((sizes < tiny_px).sum()) if sizes.size else 0
+        partial_cells = 0
+        if labels is not None:
+            for cid in np.unique(labels).tolist():
+                cell = labels == int(cid)
+                frac = float(active[cell].mean())
+                if 0.05 < frac < 0.85:
+                    partial_cells += 1
+        pid = int(plan.pigment_idx[i]) if i < len(plan.pigment_idx) else -1
+        per_impression.append({
+            "impression_id": (
+                plan.impressions[i].get("id", f"imp_{i + 1:03d}")
+                if i < len(plan.impressions) else f"imp_{i + 1:03d}"
+            ),
+            "pigment_name": (
+                _PIGMENT_NAMES[pid] if 0 <= pid < len(_PIGMENT_NAMES) else f"pigment_{pid}"
+            ),
+            "coverage_pct": round(float(active.mean() * 100.0), 3),
+            "component_count": int(ncomp),
+            "tiny_component_count": tiny,
+            "partial_cell_count": int(partial_cells),
+        })
+        tiny_total += tiny
+        component_total += int(ncomp)
+        partial_cell_total += int(partial_cells)
+
+    overlap = 0.0
+    pairs = 0
+    for i in range(alpha_stack.shape[0]):
+        for j in range(i + 1, alpha_stack.shape[0]):
+            overlap += float(np.mean(alpha_stack[i] * alpha_stack[j]))
+            pairs += 1
+    overlap = overlap / float(max(pairs, 1))
+    low_alpha_pct = float(((alpha_stack > 0.01) & (alpha_stack < active_threshold)).mean() * 100.0)
+    # Use pressure terms instead of raw counts so the score remains useful on
+    # dense Emma-scale plans. Raw component counts are still returned above.
+    m = max(1, int(alpha_stack.shape[0]))
+    cell_count = max(1, len(graph.get("cells", [])) if graph else 1)
+    component_pressure = 18.0 * float(np.log1p(component_total / float(m * 64)))
+    tiny_pressure = 25.0 * (tiny_total / float(max(component_total, 1)))
+    partial_pressure = 35.0 * (partial_cell_total / float(max(cell_count * m, 1)))
+    overlap_pressure = min(25.0, 800.0 * overlap)
+    low_alpha_pressure = min(20.0, 0.8 * low_alpha_pct)
+    penalty = (
+        component_pressure
+        + tiny_pressure
+        + partial_pressure
+        + overlap_pressure
+        + low_alpha_pressure
+    )
+    score = max(0.0, min(100.0, 100.0 - penalty))
+    return ToolResult(ok=True, data={
+        "plan_id": plan_id,
+        "score_0_100": round(score, 2),
+        "active_threshold": active_threshold,
+        "tiny_component_px": tiny_px,
+        "component_count_total": component_total,
+        "tiny_component_count_total": tiny_total,
+        "partial_cell_count_total": partial_cell_total,
+        "pairwise_overlap_mean": round(overlap, 6),
+        "low_alpha_coverage_pct": round(low_alpha_pct, 3),
+        "cell_graph_present": labels is not None,
+        "pressure_terms": {
+            "component": round(component_pressure, 3),
+            "tiny": round(tiny_pressure, 3),
+            "partial_cell": round(partial_pressure, 3),
+            "overlap": round(overlap_pressure, 3),
+            "low_alpha": round(low_alpha_pressure, 3),
+        },
+        "per_impression": per_impression,
+    })
+
+
 __all__ = ["get_pigments", "get_emma_priors", "suggest_pigment_mix", "get_defaults",
-           "solver_telemetry", "dE_at", "pigment_at"]
+           "solver_telemetry", "dE_at", "pigment_at", "cell_at", "inspect_cell",
+           "score_printability"]

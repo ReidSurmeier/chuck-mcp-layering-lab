@@ -86,6 +86,11 @@ def test_partial_pipeline_returns_plan_with_real_artifacts(tmp_path: Path, monke
     # Real S1-S3 artifacts must be on disk
     assert result.hue_family_map_path is not None
     assert Path(result.hue_family_map_path).is_file()
+    assert result.cell_graph_path is not None
+    assert Path(result.cell_graph_path).is_file()
+    assert result.cell_labels_path is not None
+    assert Path(result.cell_labels_path).is_file()
+    assert result.cell_graph_summary["cell_count"] > 0
     # SAM regions parsed
     assert len(result.sam_regions) >= 1
     # S5 disabled by env → status reflects skip
@@ -123,6 +128,10 @@ def test_partial_pipeline_with_solver_returns_real_impressions(tmp_path: Path, m
     assert result.raw_alpha_stack_path is not None
     assert Path(result.raw_alpha_stack_path).is_file()
     assert isinstance(result.jigsaw_summary, dict)
+    assert isinstance(result.printability_repair_summary, dict)
+    assert "applied" in result.printability_repair_summary
+    assert result.cell_graph_path is not None
+    assert Path(result.cell_graph_path).is_file()
 
 
 def test_partial_pipeline_persists_plan_json(tmp_path: Path, monkeypatch) -> None:
@@ -136,6 +145,7 @@ def test_partial_pipeline_persists_plan_json(tmp_path: Path, monkeypatch) -> Non
     assert loaded.image_sha256 == result.image_sha256
     assert loaded.solve_profile == "fast"
     assert loaded.dominant_family == result.dominant_family
+    assert loaded.cell_graph_summary["cell_count"] == result.cell_graph_summary["cell_count"]
 
 
 def test_partial_pipeline_strategy_template_suggestion(tmp_path: Path, monkeypatch) -> None:

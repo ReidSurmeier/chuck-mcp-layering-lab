@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from typing import Any, Literal, Union, get_args, get_origin, get_type_hints
 
 from backend.mcp.errors import ToolResult, WoodblockError
-from backend.mcp.tools import calibration, carve, core, hitl, introspection, overlay, session
+from backend.mcp.tools import calibration, carve, core, hitl, introspection, overlay, planning, session
 
 
 @dataclass(frozen=True)
@@ -69,6 +69,7 @@ def _build_registry() -> dict[str, MCPTool]:
         (hitl, "hitl"),
         (calibration, "calibration"),
         (introspection, "introspection"),
+        (planning, "planning"),
         (session, "session"),
         (carve, "carve"),
         (overlay, "overlay"),

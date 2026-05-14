@@ -8,8 +8,8 @@ morph_close repair, gated by a ΔE-regression guard.
 Pipeline:
 1. ``topology_score(alpha_stack)`` — diagnostic-only, returns per-impression
    tiny-island count + mean island area for the manifest.
-2. ``morph_repair_stack(alpha_stack)`` — single-pass binary_opening (removes
-   tiny islands < min_island_px) + binary_closing (fills small gaps,
+2. ``morph_repair_stack(alpha_stack)`` — single-pass small-object removal
+   (removes tiny islands < min_island_px) + closing (fills small gaps,
    dilates by registration tolerance for kento). Returns alpha_stack
    with the original alpha values preserved INSIDE the repaired mask
    and zero OUTSIDE.
@@ -98,12 +98,16 @@ def morph_repair_stack(
     out = np.zeros_like(alpha_stack)
     for i in range(m):
         mask = alpha_stack[i] >= vis_threshold
-        # Remove tiny islands
-        opened = morphology.remove_small_objects(mask, min_size=int(min_island_px))
+        # scikit-image 0.26 renamed min_size to max_size and changed the
+        # boundary rule. Use N - 1 to preserve "remove objects smaller than N".
+        opened = morphology.remove_small_objects(
+            mask,
+            max_size=max(0, int(min_island_px) - 1),
+        )
         # Fill small holes + dilate for registration tolerance
         if close_radius > 0:
             footprint = morphology.disk(int(close_radius))
-            closed = morphology.binary_closing(opened, footprint=footprint)
+            closed = morphology.closing(opened, footprint=footprint)
         else:
             closed = opened
         # Preserve original alpha values inside the repaired mask. Pixels
