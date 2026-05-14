@@ -98,7 +98,7 @@ def _build_manifest(plan: _orch.PartialPlan) -> dict[str, Any]:
         "solve_profile": plan.solve_profile,
         "strategy_template": plan.suggested_template,
         "calibration": {
-            "source": "generic_mixbox_13",
+            "source": "chuck_layering_lab_24",
             "fitted_at": None,
             "paper_substrate": "washi_default",
         },
@@ -149,12 +149,7 @@ def _build_recipe_md(plan: _orch.PartialPlan) -> str:
         "## Impressions (light → dark)",
         "",
     ]
-    pigment_names = [
-        "cadmium_yellow", "hansa_yellow", "cadmium_orange", "cadmium_red",
-        "quinacridone_magenta", "cobalt_violet", "ultramarine_blue",
-        "cobalt_blue", "viridian_green", "forest_green",
-        "burnt_sienna", "raw_umber", "ivory_black",
-    ]
+    pigment_names = forward_render_jax.PIGMENT_NAMES
     for imp in plan.impressions:
         pid = imp["pigment_id"]
         name = pigment_names[pid] if 0 <= pid < len(pigment_names) else f"pigment_{pid}"

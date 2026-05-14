@@ -22,7 +22,7 @@ def test_pigment_round_trips_through_json() -> None:
     restored = Pigment.model_validate_json(j)
     assert restored == p
     assert restored.k_opacity(0.5) == 0.6
-    assert restored.calibration_source == "generic_mixbox_13"
+    assert restored.calibration_source == "chuck_layering_lab_24"
 
 
 def test_pigment_rejects_invalid_family() -> None:

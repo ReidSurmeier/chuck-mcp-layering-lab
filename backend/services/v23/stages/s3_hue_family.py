@@ -13,7 +13,7 @@ Heuristic bands (not learned) keyed off luminance + warm/cool/green:
 - accent: everything else (purples, off-saturated mids)
 
 Pure heuristic so day-1 ships without learned weights. Calibrated to
-the 13-pigment Mixbox catalog used in forward_render_jax.PIGMENT_TABLE.
+the Chuck pigment catalog used in forward_render_jax.PIGMENT_TABLE.
 A future D11+ tier can swap in a learned classifier (e.g. OKLab k-means
 from the actual image) when the corpus shows the heuristic drifts.
 """

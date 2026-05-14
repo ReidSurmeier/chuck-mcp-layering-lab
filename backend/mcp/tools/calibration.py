@@ -150,7 +150,7 @@ def capture_swatch(
 def fit_pigments(candidate_id: str) -> ToolResult[dict[str, Any]]:
     """Fit per-pigment Lab offset against captured swatch patches.
 
-    Iterates over the 13-pigment table, matches each pigment to the closest
+    Iterates over the Chuck pigment table, matches each pigment to the closest
     captured patch by ΔE76, computes (delta_L, delta_a, delta_b) so the
     forward render of that pigment lands on the captured Lab.
 
@@ -176,15 +176,9 @@ def fit_pigments(candidate_id: str) -> ToolResult[dict[str, Any]]:
     patch_labs = np.asarray(
         [p["mean_lab"] for p in patches], dtype=np.float32,
     )  # (P, 3)
-    pigment_rgb = _fr.PIGMENT_TABLE  # (13, 3) in [0, 1]
-    pigment_lab = _color.srgb_to_lab(pigment_rgb)  # (13, 3)
-
-    pigment_names = [
-        "cadmium_yellow", "hansa_yellow", "cadmium_orange", "cadmium_red",
-        "quinacridone_magenta", "cobalt_violet", "ultramarine_blue",
-        "cobalt_blue", "viridian_green", "forest_green",
-        "burnt_sienna", "raw_umber", "ivory_black",
-    ]
+    pigment_rgb = _fr.PIGMENT_TABLE
+    pigment_lab = _color.srgb_to_lab(pigment_rgb)
+    pigment_names = _fr.PIGMENT_NAMES
 
     fits = []
     fit_dEs = []
@@ -226,9 +220,10 @@ def fit_pigments(candidate_id: str) -> ToolResult[dict[str, Any]]:
 def apply_calibration(calibration_id: str) -> ToolResult[dict[str, Any]]:
     state_file = paths.WB_DATA_DIR / "active_calibration"
     paths.WB_DATA_DIR.mkdir(parents=True, exist_ok=True)
-    previous = state_file.read_text().strip() if state_file.is_file() else "generic_mixbox_13"
+    builtins = {"chuck_layering_lab_24", "generic_mixbox_13"}
+    previous = state_file.read_text().strip() if state_file.is_file() else "chuck_layering_lab_24"
     cal_file = _calibrations_dir() / f"{calibration_id}.json"
-    if not cal_file.is_file() and calibration_id != "generic_mixbox_13":
+    if not cal_file.is_file() and calibration_id not in builtins:
         return ToolResult(ok=False, data=None, errors=[
             WoodblockError(tier="refusal", code="CALIBRATION_NOT_FOUND",
                            message=f"calibration {calibration_id!r} not found",

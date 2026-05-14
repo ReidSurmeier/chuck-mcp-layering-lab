@@ -1,4 +1,4 @@
-"""woodblock_stack v23 MCP stdio server.
+"""Chuck MCP layering-lab stdio server.
 
 The production target is FastMCP, but the local venv does not currently
 include that optional dependency. This module implements the small MCP
@@ -15,7 +15,7 @@ from typing import Any
 from backend.mcp.registry import TOOLS, call_mcp_tool, list_mcp_tools, tool_result_to_jsonable
 
 PROTOCOL_VERSION = "2024-11-05"
-SERVER_NAME = "woodblock_stack"
+SERVER_NAME = "chuck_layering_lab"
 SERVER_VERSION = "0.0.1"
 
 

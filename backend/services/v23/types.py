@@ -1,4 +1,4 @@
-"""D2 Pydantic types for the v23-MCP woodblock_stack package.
+"""D2 Pydantic types for the Chuck MCP layering-lab package.
 
 Authority: ``/tmp/research-v23-mcp-interfaces.md`` §2.1 (Pigment) and
 ``/tmp/research-v23-data-model.md`` (Block, Impression, Mask, PullGroup, Plan).
@@ -40,7 +40,7 @@ class Pigment(BaseModel):
     * ``family``: hue-family slot in a Strategy template
     * ``density``: paste-to-water ratio, normalized 0..1
     * ``opacity_curve``: dict of dilution → k_opacity
-    * ``calibration_source``: ``generic_mixbox_13`` or ``fitted_<cal_id>``
+    * ``calibration_source``: ``chuck_layering_lab_24`` or ``fitted_<cal_id>``
     """
 
     model_config = ConfigDict(frozen=True)
@@ -53,8 +53,8 @@ class Pigment(BaseModel):
     density: float = Field(ge=0.0, le=1.0)
     opacity_curve: dict[str, float] = Field(default_factory=dict)
     calibration_source: str = Field(
-        default="generic_mixbox_13",
-        pattern=r"^(generic_mixbox_13|fitted_[a-z0-9_\-]{1,40})$",
+        default="chuck_layering_lab_24",
+        pattern=r"^(chuck_layering_lab_24|generic_mixbox_13|fitted_[a-z0-9_\-]{1,40})$",
     )
 
     def k_opacity(self, dilution: float = 1.0) -> float:

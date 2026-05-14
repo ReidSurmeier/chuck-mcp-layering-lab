@@ -105,7 +105,7 @@ def call_mcp_tool(name: str, arguments: dict[str, Any] | None = None) -> ToolRes
                 tier="refusal",
                 code="UNKNOWN_TOOL",
                 message=f"unknown tool: {name}",
-                hint="call tools/list for the registered woodblock_stack surface",
+                hint="call tools/list for the registered chuck_layering_lab surface",
                 recoverable=True,
             )
         ])

@@ -3,9 +3,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "woodblock_stack"
+name = "chuck-mcp-layering-lab"
 version = "0.0.1"
-description = "v23-MCP server for mokuhanga plausible-plan synthesis from one image"
+description = "Chuck MCP layering lab for mokuhanga underlayer, jigsaw plate, and pigment-mix experiments"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
@@ -31,6 +31,7 @@ dev = ["pytest>=8.0", "pytest-asyncio>=0.23", "mypy>=1.10", "ruff>=0.5"]
 
 [project.scripts]
 woodblock-mcp = "backend.mcp.v23_server:main"
+chuck-layering-mcp = "backend.mcp.v23_server:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["backend/mcp", "backend/services/v23"]

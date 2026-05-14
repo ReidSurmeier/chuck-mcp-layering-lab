@@ -37,9 +37,11 @@ def test_tan_warmstart_pigment_idx_are_valid_catalog_entries() -> None:
     rng = np.random.default_rng(0)
     img = rng.integers(0, 256, size=(16, 16, 3), dtype=np.uint8)
     result = tan_to_pigment_warmstart(img, target_palette_size=6)
-    # 13-pigment Mixbox catalog
+    from backend.services.v23.core import forward_render_jax
+
+    # Chuck pigment catalog
     for pid in result.pigment_idx:
-        assert 0 <= pid <= 12, f"pigment_idx {pid} outside [0, 12]"
+        assert 0 <= pid < len(forward_render_jax.PIGMENT_NAMES)
 
 
 def test_tan_warmstart_alphas_sum_close_to_one_at_each_pixel() -> None:
@@ -76,3 +78,20 @@ def test_tan_warmstart_single_color_image_returns_one_pigment() -> None:
     result = tan_to_pigment_warmstart(img, target_palette_size=4)
     # All vertices collapse to one pigment after Mixbox snap
     assert len(set(result.pigment_idx)) == 1
+
+
+def test_layering_lab_warmstart_infers_broad_base_and_chroma_accent() -> None:
+    from backend.services.v23.stages.s4_warmstart import layering_lab_warmstart
+
+    img = np.full((48, 48, 3), [245, 230, 150], dtype=np.uint8)
+    img[18:30, 18:30] = (220, 40, 45)
+
+    result = layering_lab_warmstart(img, target_palette_size=6)
+
+    light_underlayer_candidates = {0, 1, 2, 13, 14, 21, 23}
+    red_candidates = {3, 16, 17, 18}
+    assert result.pigment_idx[0] in light_underlayer_candidates
+    assert any(pid in red_candidates for pid in result.pigment_idx)
+    underlayer = result.alpha_stack[0]
+    assert float((underlayer > 0.08).mean()) > 0.50
+    assert underlayer.shape == (48, 48)

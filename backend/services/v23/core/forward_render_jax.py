@@ -1,4 +1,4 @@
-"""D6 — JAX-traceable forward render (Mixbox-stack lerp).
+"""D6 — JAX-traceable forward render (pigment-stack lerp).
 
 Stacks per-pixel pigment alpha maps over a washi paper substrate in
 print order. The forward render is the gradient target of the inverse
@@ -6,8 +6,9 @@ solver (S5, D7+) so it MUST be JAX-jittable and produce finite gradients
 w.r.t. the alpha tensor.
 
 Ship-mode (this file): pure-JAX RGB-space stack, no external Mixbox
-dependency. The 13-pigment table seeds from `palette_extract.MIXBOX_PIGMENTS`
-RGB anchors so downstream stages keep using the same pigment ids.
+dependency. The layering-lab catalog starts from the historical 13-pigment
+set and adds common natural/synthetic print pigments so experiments can force
+explicit red, ochre, brown, and blue-green roles.
 
 When the Scrtwpns Mixbox C library is available on the GPU host, a
 pre-built trilinear LUT at ``~/.woodblock/v23/luts/mixbox_q32.npz`` is
@@ -26,10 +27,35 @@ import jax.numpy as jnp
 import numpy as np
 from numpy.typing import NDArray
 
-# Per-pigment sRGB anchors for the 13-catalog. Sourced from
-# `backend/algorithms/decomposition/palette_extract.py::MIXBOX_PIGMENTS`
-# (hand-verified Mixbox-anchored entries). Vendored here so the module
-# stays self-contained and JAX-traceable without importing palette_extract.
+PIGMENT_NAMES: tuple[str, ...] = (
+    "cadmium_yellow",
+    "hansa_yellow",
+    "cadmium_orange",
+    "cadmium_red",
+    "quinacridone_magenta",
+    "cobalt_violet",
+    "ultramarine_blue",
+    "cobalt_blue",
+    "viridian_green",
+    "forest_green",
+    "burnt_sienna",
+    "raw_umber",
+    "ivory_black",
+    "yellow_ochre",
+    "raw_sienna",
+    "burnt_umber",
+    "alizarin_crimson",
+    "vermilion",
+    "naphthol_red",
+    "prussian_blue",
+    "phthalo_blue",
+    "cerulean_blue",
+    "phthalo_green",
+    "sap_green",
+)
+
+# Per-pigment sRGB anchors. Vendored here so the module stays self-contained
+# and JAX-traceable without importing palette extraction helpers.
 PIGMENT_RGB_255: NDArray[np.uint8] = np.array(
     [
         (254, 236, 0),    # 0  cadmium_yellow
@@ -45,9 +71,21 @@ PIGMENT_RGB_255: NDArray[np.uint8] = np.array(
         (139, 69, 19),    # 10 burnt_sienna
         (51, 25, 0),      # 11 raw_umber
         (15, 15, 15),     # 12 ivory_black
+        (204, 153, 51),   # 13 yellow_ochre
+        (161, 102, 47),   # 14 raw_sienna
+        (91, 58, 41),     # 15 burnt_umber
+        (166, 23, 37),    # 16 alizarin_crimson
+        (227, 66, 52),    # 17 vermilion
+        (191, 29, 32),    # 18 naphthol_red
+        (0, 49, 83),      # 19 prussian_blue
+        (0, 38, 84),      # 20 phthalo_blue
+        (42, 125, 186),   # 21 cerulean_blue
+        (0, 89, 76),      # 22 phthalo_green
+        (80, 125, 42),    # 23 sap_green
     ],
     dtype=np.uint8,
 )
+assert len(PIGMENT_NAMES) == len(PIGMENT_RGB_255)
 
 PIGMENT_TABLE: NDArray[np.float32] = (PIGMENT_RGB_255.astype(np.float32) / 255.0)
 
@@ -113,4 +151,10 @@ def forward_render(
     return jnp.clip(out, 0.0, 1.0)
 
 
-__all__ = ["forward_render", "PIGMENT_TABLE", "PAPER_RGB", "PIGMENT_RGB_255"]
+__all__ = [
+    "forward_render",
+    "PIGMENT_NAMES",
+    "PIGMENT_TABLE",
+    "PAPER_RGB",
+    "PIGMENT_RGB_255",
+]

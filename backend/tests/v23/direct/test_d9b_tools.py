@@ -110,7 +110,7 @@ def test_capture_swatch_invalid_layout_refuses(tmp_path: Path, monkeypatch) -> N
 
 
 def test_apply_calibration_unknown_refuses(tmp_path: Path, monkeypatch) -> None:
-    """Post-D14.l: apply_calibration validates the id exists (not generic_mixbox_13)."""
+    """Post-D14.l: apply_calibration validates the id exists."""
     _isolate(monkeypatch, tmp_path)
     from backend.mcp.tools import calibration
     r = calibration.apply_calibration("cal_fitted_test")
@@ -121,7 +121,7 @@ def test_apply_calibration_unknown_refuses(tmp_path: Path, monkeypatch) -> None:
 def test_apply_calibration_builtin_passthrough(tmp_path: Path, monkeypatch) -> None:
     _isolate(monkeypatch, tmp_path)
     from backend.mcp.tools import calibration
-    r = calibration.apply_calibration("generic_mixbox_13")
+    r = calibration.apply_calibration("chuck_layering_lab_24")
     assert r.ok is True
     assert r.data["applied"] is True
 
@@ -142,13 +142,22 @@ def test_inspect_unknown_calibration(tmp_path: Path, monkeypatch) -> None:
     assert any(e.code == "CALIBRATION_NOT_FOUND" for e in r.errors)
 
 
-# Tier 3 — Introspection (6 tools, all real read-only)
+# Tier 3 — Introspection tools
 
-def test_get_pigments_returns_13() -> None:
+def test_get_pigments_returns_layering_lab_catalog() -> None:
     from backend.mcp.tools import introspection
     r = introspection.get_pigments()
     assert r.ok is True
-    assert r.data["count"] == 13
+    assert r.data["count"] == 24
+    assert r.data["catalog"] == "chuck_layering_lab_24"
+
+
+def test_suggest_pigment_mix_returns_ratios() -> None:
+    from backend.mcp.tools import introspection
+    r = introspection.suggest_pigment_mix("#c65a40", max_pigments=3, candidate_limit=2)
+    assert r.ok is True
+    assert len(r.data["recipes"]) == 2
+    assert "parts" in r.data["recipes"][0]
 
 
 def test_get_emma_priors_has_six_families() -> None:
@@ -308,7 +317,7 @@ def test_tier_modules_export_expected_tool_counts() -> None:
     expected = {
         hitl: 10,           # 8 listed + 2 aliases
         calibration: 5,
-        introspection: 6,
+        introspection: 7,
         session: 4,
         carve: 3,
         overlay: 4,

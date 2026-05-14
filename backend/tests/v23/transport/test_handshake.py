@@ -14,7 +14,7 @@ def test_server_responds_to_initialize(mcp_stdio_client) -> None:
         "clientInfo": {"name": "pytest", "version": "0"},
     })
     assert response["jsonrpc"] == "2.0"
-    assert response["result"]["serverInfo"]["name"] == "woodblock_stack"
+    assert response["result"]["serverInfo"]["name"] == "chuck_layering_lab"
     assert "tools" in response["result"]["capabilities"]
 
 

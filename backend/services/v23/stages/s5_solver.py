@@ -26,7 +26,7 @@ import jax.numpy as jnp
 import jaxopt
 import numpy as np
 from numpy.typing import NDArray
-from PIL import Image
+from PIL import Image, ImageFilter
 
 from backend.services.v23.core import forward_render_jax
 
@@ -37,10 +37,11 @@ _LOWPASS_WINDOW = 8
 _MIDPASS_WINDOW = 12
 _UNDERPASS_WINDOW = 32
 _SPECKLE_WINDOW = 9
-_UNDER_CONTROL_FACTOR = 4
-_MID_CONTROL_FACTOR = 2
+_UNDER_CONTROL_FACTOR = 12
+_MID_CONTROL_FACTOR = 4
 _UNDER_TARGET_STRENGTH = 0.42
 _MID_TARGET_STRENGTH = 0.72
+_JIGSAW_OVERLAP_WEIGHT = 0.012
 
 
 @dataclass(frozen=True)
@@ -150,6 +151,26 @@ def _alpha_speckle(alpha: jnp.ndarray) -> jnp.ndarray:
     return jnp.mean(active * broad_support * broad_support)
 
 
+def _alpha_highfreq(alpha: jnp.ndarray, window: int) -> jnp.ndarray:
+    """Penalize plate detail that survives below a role's intended brush scale."""
+    local = _avg_pool_alpha(alpha, window)
+    return jnp.mean((alpha - local) ** 2)
+
+
+def _pairwise_overlap(alpha: jnp.ndarray) -> jnp.ndarray:
+    """Encourage middle color plates to jigsaw instead of all fading together."""
+    m = alpha.shape[0]
+    if m <= 1:
+        return jnp.asarray(0.0, dtype=jnp.float32)
+    total = jnp.asarray(0.0, dtype=jnp.float32)
+    pairs = 0
+    for i in range(m):
+        for j in range(i + 1, m):
+            total = total + jnp.mean(alpha[i] * alpha[j])
+            pairs += 1
+    return total / float(max(pairs, 1))
+
+
 def _role_layout(m: int) -> _RoleLayout:
     """Assign printmaking roles after light-to-dark ordering."""
     if m <= 2:
@@ -176,6 +197,19 @@ def _logit_np(alpha: NDArray[np.float32]) -> NDArray[np.float32]:
     return np.log(clipped / (1.0 - clipped)).astype(np.float32)
 
 
+def _blur_alpha_stack_np(
+    alpha_stack: NDArray[np.float32],
+    *,
+    radius: float,
+) -> NDArray[np.float32]:
+    out: list[NDArray[np.float32]] = []
+    for alpha in alpha_stack:
+        arr = np.clip(alpha * 255.0, 0, 255).astype(np.uint8)
+        img = Image.fromarray(arr, "L").filter(ImageFilter.GaussianBlur(radius=radius))
+        out.append(np.asarray(img, dtype=np.float32) / 255.0)
+    return np.stack(out, axis=0).astype(np.float32)
+
+
 def _make_role_params(
     alpha_stack: NDArray[np.float32],
     layout: _RoleLayout,
@@ -185,7 +219,11 @@ def _make_role_params(
     params: dict[str, jnp.ndarray] = {}
     if layout.under_count:
         under_h, under_w = _control_shape((h, w), _UNDER_CONTROL_FACTOR)
-        under = _resize_alpha_stack(alpha_stack[: layout.under_end], (under_w, under_h))
+        under_src = _blur_alpha_stack_np(
+            alpha_stack[: layout.under_end],
+            radius=max(4.0, min(h, w) / 56.0),
+        )
+        under = _resize_alpha_stack(under_src, (under_w, under_h))
         params["under"] = jnp.asarray(_logit_np(under), dtype=jnp.float32)
     if layout.mid_count:
         mid_h, mid_w = _control_shape((h, w), _MID_CONTROL_FACTOR)
@@ -295,22 +333,34 @@ def _solver_loss(
         alpha_under = alpha[: layout.under_end]
         return (
             under_loss
-            + 0.080 * _layered_alpha_tv(alpha_under)
-            + 0.120 * _alpha_speckle(alpha_under)
+            + 0.100 * _layered_alpha_tv(alpha_under)
+            + 0.160 * _alpha_speckle(alpha_under)
+            + 0.220 * _alpha_highfreq(alpha_under, _UNDERPASS_WINDOW)
         )
     if stage == "mid":
         alpha_prefix = alpha[: layout.mid_end]
+        alpha_mid = alpha[layout.under_end : layout.mid_end]
         return (
             0.75 * mid_loss
             + 0.25 * under_loss
             + 0.060 * _layered_alpha_tv(alpha_prefix)
             + 0.080 * _alpha_speckle(alpha_prefix)
+            + 0.045 * _alpha_highfreq(alpha[: layout.under_end], _UNDERPASS_WINDOW)
+            + _JIGSAW_OVERLAP_WEIGHT * _pairwise_overlap(alpha_mid)
         )
 
     weighted_rgb = jnp.mean(target_weight * (rgb - target_rgb) ** 2)
     lowpass = jnp.mean((_avg_pool_rgb(rgb) - target_lowpass) ** 2)
     tv = _layered_alpha_tv(alpha)
     speckle = _alpha_speckle(alpha)
+    under_highfreq = (
+        _alpha_highfreq(alpha[: layout.under_end], _UNDERPASS_WINDOW)
+        if layout.under_count else 0.0
+    )
+    mid_overlap = (
+        _pairwise_overlap(alpha[layout.under_end : layout.mid_end])
+        if layout.mid_count else 0.0
+    )
 
     selected = jnp.asarray(forward_render_jax.PIGMENT_TABLE, dtype=jnp.float32)[pigment_idx]
     pigment_lum = 0.299 * selected[:, 0] + 0.587 * selected[:, 1] + 0.114 * selected[:, 2]
@@ -325,6 +375,8 @@ def _solver_loss(
         + 0.015 * under_loss
         + 0.030 * tv
         + 0.045 * speckle
+        + 0.060 * under_highfreq
+        + _JIGSAW_OVERLAP_WEIGHT * mid_overlap
         + 0.015 * dark_on_bright
     )
 

@@ -191,7 +191,7 @@ def run_pipeline_partial(
         try:
             import numpy as _np
 
-            warm = s4_warmstart.tan_to_pigment_warmstart(
+            warm = s4_warmstart.layering_lab_warmstart(
                 handle.array,
                 target_palette_size=target_palette_size,
             )

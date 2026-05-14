@@ -15,10 +15,10 @@ def test_v23_server_import_returns_fastmcp_app() -> None:
     assert callable(v23_server.main)
 
 
-def test_v23_server_app_name_is_woodblock_stack() -> None:
+def test_v23_server_app_name_is_chuck_layering_lab() -> None:
     from backend.mcp import v23_server
 
     # ``app`` may be a FastMCP instance later; for D1, any object exposing a
-    # ``name`` attribute equal to ``woodblock_stack`` satisfies the contract.
+    # ``name`` attribute equal to ``chuck_layering_lab`` satisfies the contract.
     name = getattr(v23_server.app, "name", None)
-    assert name == "woodblock_stack", f"expected name='woodblock_stack', got {name}"
+    assert name == "chuck_layering_lab", f"expected name='chuck_layering_lab', got {name}"

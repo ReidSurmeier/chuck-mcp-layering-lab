@@ -5,15 +5,11 @@ import time
 from typing import Any, Literal
 
 from backend.mcp.errors import ToolResult, WoodblockError
+from backend.services.v23.core import forward_render_jax
 
 _PIN_ACTIONS = ("force", "forbid", "merge")
 
-_PIGMENT_NAMES = [
-    "cadmium_yellow", "hansa_yellow", "cadmium_orange", "cadmium_red",
-    "quinacridone_magenta", "cobalt_violet", "ultramarine_blue",
-    "cobalt_blue", "viridian_green", "forest_green",
-    "burnt_sienna", "raw_umber", "ivory_black",
-]
+_PIGMENT_NAMES = forward_render_jax.PIGMENT_NAMES
 
 
 def _pigment_name_to_id(name: str) -> int | None:

@@ -1,4 +1,4 @@
-"""woodblock_stack v23-MCP server package.
+"""Chuck MCP layering-lab server package.
 
 Entry point: :func:`backend.mcp.v23_server.main`.
 Public API surface lives in submodules under ``tools/``.

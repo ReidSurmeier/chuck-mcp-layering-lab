@@ -1,21 +1,18 @@
-"""D9B — Tier 3 introspection tools (6 tools, all REAL read-only)."""
+"""D9B — Tier 3 introspection tools (read-only + pigment guidance)."""
 from __future__ import annotations
 
 from typing import Any
+
+import numpy as np
 
 from backend.mcp.errors import ToolResult, WoodblockError
 from backend.services.v23.core import forward_render_jax
 
 
 def get_pigments() -> ToolResult[dict[str, Any]]:
-    """Return the 13-pigment Mixbox-anchored catalog."""
+    """Return the Chuck layering-lab pigment catalog."""
     pigments = []
-    names = [
-        "cadmium_yellow", "hansa_yellow", "cadmium_orange", "cadmium_red",
-        "quinacridone_magenta", "cobalt_violet", "ultramarine_blue",
-        "cobalt_blue", "viridian_green", "forest_green",
-        "burnt_sienna", "raw_umber", "ivory_black",
-    ]
+    names = forward_render_jax.PIGMENT_NAMES
     for idx, name in enumerate(names):
         r, g, b = forward_render_jax.PIGMENT_RGB_255[idx].tolist()
         pigments.append({
@@ -25,7 +22,7 @@ def get_pigments() -> ToolResult[dict[str, Any]]:
             "hex": f"#{r:02x}{g:02x}{b:02x}",
         })
     return ToolResult(ok=True, data={"pigments": pigments, "count": len(pigments),
-                                     "catalog": "generic_mixbox_13"})
+                                     "catalog": "chuck_layering_lab_24"})
 
 
 def get_emma_priors() -> ToolResult[dict[str, Any]]:
@@ -41,6 +38,46 @@ def get_emma_priors() -> ToolResult[dict[str, Any]]:
     })
 
 
+def suggest_pigment_mix(
+    target_hex: str,
+    *,
+    max_pigments: int = 3,
+    candidate_limit: int = 5,
+) -> ToolResult[dict[str, Any]]:
+    """Suggest premix ratios for a target color using available Chuck pigments."""
+    try:
+        target = _parse_hex_color(target_hex)
+    except ValueError as exc:
+        return ToolResult(ok=False, data=None, errors=[
+            WoodblockError(
+                tier="refusal",
+                code="INVALID_TARGET_COLOR",
+                message=str(exc),
+                hint="use a 6-digit hex color such as #c65a40",
+                recoverable=True,
+            )
+        ])
+
+    max_pigments = int(max(1, min(max_pigments, 3)))
+    candidate_limit = int(max(1, min(candidate_limit, 12)))
+    recipes = _mix_candidates(target, max_pigments=max_pigments, limit=candidate_limit)
+    return ToolResult(ok=True, data={
+        "target_hex": _rgb_to_hex(target),
+        "target_rgb": [round(float(v), 4) for v in target.tolist()],
+        "catalog": "chuck_layering_lab_24",
+        "recipes": recipes,
+        "guidance": (
+            "Ratios are premix starting points by volume/weight. Make swatches on "
+            "the same paper, adjust with water/paste for opacity, and prefer a "
+            "separate plate when the color shift is regional or needs a crisp edge."
+        ),
+        "render_note": (
+            "This is RGB premix guidance, not an overprint-glazing prediction. "
+            "Use calibration swatches for final color decisions."
+        ),
+    })
+
+
 def get_defaults() -> ToolResult[dict[str, Any]]:
     """Return locked technical defaults from research-v23-mcp-defaults.md."""
     return ToolResult(ok=True, data={
@@ -52,9 +89,93 @@ def get_defaults() -> ToolResult[dict[str, Any]]:
         "min_island_px_at_300dpi": 60,
         "kento_dilation_px_at_300dpi": 3,
         "schema_version": "v23.0",
-        "calibration_default": "generic_mixbox_13",
+        "calibration_default": "chuck_layering_lab_24",
         "render_tier_default": "t1_mixbox",
     })
+
+
+def _parse_hex_color(value: str) -> np.ndarray:
+    raw = value.strip()
+    if raw.startswith("#"):
+        raw = raw[1:]
+    if len(raw) != 6:
+        raise ValueError(f"target_hex must have 6 hex digits, got {value!r}")
+    try:
+        rgb = [int(raw[i:i + 2], 16) for i in (0, 2, 4)]
+    except ValueError as exc:
+        raise ValueError(f"target_hex contains non-hex characters: {value!r}") from exc
+    return np.asarray(rgb, dtype=np.float32) / 255.0
+
+
+def _rgb_to_hex(rgb: np.ndarray) -> str:
+    vals = np.clip(np.round(rgb * 255.0), 0, 255).astype(int).tolist()
+    return f"#{vals[0]:02x}{vals[1]:02x}{vals[2]:02x}"
+
+
+def _simplex_weights(k: int, step: float = 0.05) -> list[np.ndarray]:
+    if k == 1:
+        return [np.asarray([1.0], dtype=np.float32)]
+    units = int(round(1.0 / step))
+    out: list[np.ndarray] = []
+    if k == 2:
+        for i in range(units + 1):
+            out.append(np.asarray([i / units, 1.0 - i / units], dtype=np.float32))
+        return out
+    for i in range(units + 1):
+        for j in range(units - i + 1):
+            l = units - i - j
+            out.append(np.asarray([i / units, j / units, l / units], dtype=np.float32))
+    return out
+
+
+def _mix_candidates(
+    target_rgb: np.ndarray,
+    *,
+    max_pigments: int,
+    limit: int,
+) -> list[dict[str, Any]]:
+    import itertools
+
+    pigments = forward_render_jax.PIGMENT_TABLE.astype(np.float32)
+    names = forward_render_jax.PIGMENT_NAMES
+    scored: list[tuple[float, tuple[int, ...], np.ndarray, np.ndarray]] = []
+    for k in range(1, max_pigments + 1):
+        weights = _simplex_weights(k)
+        for combo in itertools.combinations(range(len(names)), k):
+            colors = pigments[list(combo)]
+            best_err = float("inf")
+            best_mix = colors[0]
+            best_w = weights[0]
+            for w in weights:
+                mixed = np.sum(colors * w[:, None], axis=0)
+                err = float(_delta_e76(tuple(target_rgb.tolist()), tuple(mixed.tolist())))
+                # Slight bias toward simpler bench recipes when color match ties.
+                err += 0.05 * (k - 1)
+                if err < best_err:
+                    best_err = err
+                    best_mix = mixed
+                    best_w = w
+            scored.append((best_err, combo, best_w, best_mix))
+
+    scored.sort(key=lambda row: row[0])
+    recipes: list[dict[str, Any]] = []
+    for err, combo, weights, mixed in scored[:limit]:
+        parts = []
+        for idx, weight in sorted(zip(combo, weights, strict=True), key=lambda x: -x[1]):
+            if float(weight) <= 0.0:
+                continue
+            parts.append({
+                "pigment_id": int(idx),
+                "pigment_name": names[int(idx)],
+                "ratio_pct": round(float(weight) * 100.0, 1),
+            })
+        recipes.append({
+            "mixed_hex": _rgb_to_hex(mixed),
+            "mixed_rgb": [round(float(v), 4) for v in mixed.tolist()],
+            "delta_e76": round(float(err), 3),
+            "parts": parts,
+        })
+    return recipes
 
 
 def solver_telemetry(plan_id: str) -> ToolResult[dict[str, Any]]:
@@ -101,12 +222,7 @@ def solver_telemetry(plan_id: str) -> ToolResult[dict[str, Any]]:
     )
 
 
-_PIGMENT_NAMES = [
-    "cadmium_yellow", "hansa_yellow", "cadmium_orange", "cadmium_red",
-    "quinacridone_magenta", "cobalt_violet", "ultramarine_blue",
-    "cobalt_blue", "viridian_green", "forest_green",
-    "burnt_sienna", "raw_umber", "ivory_black",
-]
+_PIGMENT_NAMES = forward_render_jax.PIGMENT_NAMES
 
 
 def _delta_e76(rgb_a: tuple[float, float, float], rgb_b: tuple[float, float, float]) -> float:
@@ -279,5 +395,5 @@ def pigment_at(plan_id: str, x: int, y: int) -> ToolResult[dict[str, Any]]:
     })
 
 
-__all__ = ["get_pigments", "get_emma_priors", "get_defaults",
+__all__ = ["get_pigments", "get_emma_priors", "suggest_pigment_mix", "get_defaults",
            "solver_telemetry", "dE_at", "pigment_at"]

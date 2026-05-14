@@ -1,29 +1,30 @@
-# Chuck MCP
+# Chuck MCP Layering Lab
 
-Chuck MCP is a local MCP server for building mokuhanga-style print plans from a
-single input image. It runs a JAX inverse-stack solver, emits cumulative pull
-previews, and can export carving-oriented SVG artifacts for testing.
+Chuck MCP Layering Lab is a separate experimental repo for testing broader
+underlayers, jigsawed regional color plates, image-driven accent passes, and
+pigment mix guidance on top of the current Chuck MCP tool stack.
 
-This repository is the Chuck experiment. It is intentionally separate from
-`emma-mokuhanga-mcp`; do not mix the two repos or tool surfaces.
+This repo starts from `ReidSurmeier/woodblock-reidsurmeier-wtf` at
+`6db6f11`. It is intentionally separate from `emma-mokuhanga-mcp`; do not mix
+those repos or tool surfaces.
 
 ## Current Status
 
-The current `main` branch contains the role-based solver experiment:
+The current `main` branch contains the layering-lab fork:
 
 - saved baseline: `chuck-mcp-speckle-m10-20260512`
-- current role-based tag: `chuck-mcp-rolebased-joint-20260512`
-- current main commit: `55362a6 Chuck MCP add role-based solver parameterization`
+- parent role-based tag: `chuck-mcp-rolebased-joint-20260512`
+- parent fork point: `6db6f11 Rewrite Chuck MCP README for role-based solver`
 
-The solver is working on GPU and produces a real overlapping pull stack. It is
-not final CNC-ready printmaking advice yet. The main remaining issue is still
-brushed-zone topology: some impressions are cleaner and broader than the older
-M10 build, but detailed contour reconstruction still leaks into several color
-passes.
+The parent solver works on GPU and produces a real overlapping pull stack. This
+fork changes the next hypothesis: early base plates must be broad by
+construction, middle color plates should prefer separated jigsaw regions, and
+missing colors should be expressible as pigment-mix recipes instead of forcing
+the optimizer to invent noisy masks.
 
 ## What It Does
 
-Chuck MCP takes one image and generates:
+Chuck MCP Layering Lab takes one image and generates:
 
 - an ordered stack of translucent/semi-opaque impressions
 - cumulative print previews after every pull
@@ -31,12 +32,33 @@ Chuck MCP takes one image and generates:
 - a final composite preview
 - plan metadata for MCP tools
 - optional SVG/carving exports
+- pigment mix suggestions for colors outside the catalog
 
 The system does **not** recover historical or true underlayers from an image.
 It designs plausible underprint candidates under the current pigment/rendering
 model.
 
-## Current Solver
+## Layering Lab Direction
+
+The reference images in `/srv/woodblock-share/Examples` show a different
+construction logic from the earlier pixel-reconstruction runs:
+
+- the first block is light yellow because the reference needs a high-luminance
+  warm support field; in another image this role should be the lightest broad
+  support pigment selected from that image
+- base colors carry large diffuse areas before final detail appears
+- red is a separate color role here because it is a high-chroma regional accent
+  with crisp boundaries, not because the solver should always add red
+- later hue shifts are jigsawed as separated regional blocks with clear borders
+- optical mixing comes from stack order, local opacity, and premixed pigment
+  choices, not from every plate fading into every neighbor
+
+That makes the most important failure clear: broad base roles must not start as
+skinny pixel-level detail. In this fork, the first support role is inferred from
+low-frequency target structure, and high-chroma regional colors are seeded as
+their own accent plates when warranted.
+
+## Current Solver Changes
 
 The current S5 solver uses:
 
@@ -48,14 +70,29 @@ The current S5 solver uses:
   - middle pulls: regional color/shadow controls
   - final pulls: detail/key controls
 - different parameterization by role:
-  - underlayers use a 4x coarser control grid
-  - middle impressions use a 2x coarser control grid
+  - underlayers use a 12x coarser control grid
+  - middle impressions use a 4x coarser control grid
   - detail impressions remain full solve-grid
+- a role-aware warm start:
+  - broad underlayer seed from low-frequency color/tonal structure
+  - underlayer pigment inferred from broad-support color, preferring lighter
+    pigments early
+  - separate high-chroma accent seed when a regional hue shift exists
+  - base-hue Tan seeds are blurred before reaching S5
+- jigsaw pressure for middle plates:
+  - pairwise overlap penalty between middle color plates
+  - stronger high-frequency penalty on underlayers
 - edge-weighted RGB loss
 - low-pass target loss
 - layer-weighted TV
 - local-support/speckle penalty
 - dark-on-bright penalty
+
+The pigment catalog is expanded from the parent 13 entries to 24 entries:
+cadmium/hansa yellows, orange, cadmium red, quinacridone magenta, violets,
+ultramarine/cobalt/prussian/phthalo/cerulean blues, viridian/phthalo/sap greens,
+burnt/raw sienna and umber, yellow ochre, alizarin crimson, vermilion, naphthol
+red, forest green, and ivory black.
 
 The staged warm-up solver is available but not enabled by default:
 
@@ -63,9 +100,9 @@ The staged warm-up solver is available but not enabled by default:
 WOODBLOCK_ROLE_WARMUP=1
 ```
 
-Validation showed the warm-up stages over-shaped early pulls on the Emma test
-image. The default is therefore joint optimization over role-parameterized
-groups.
+Validation in the parent repo showed staged warm-ups over-shaped early pulls on
+the Emma test image. The lab fork keeps the default as joint optimization over
+role-parameterized groups while changing the warm-start and role geometry.
 
 ## Solve Profiles
 
@@ -94,7 +131,7 @@ Input:
 /srv/woodblock-share/input-images/close_emma_2002_2048.jpg
 ```
 
-Latest role-based output:
+Parent role-based output:
 
 ```text
 /srv/woodblock-share/output-images/chuck-rolebased-joint-main-20260512-160644
@@ -118,7 +155,7 @@ Metrics:
 | impressions | 9 |
 | first 3 pull components at alpha >= 0.30 | 1364 |
 
-Print order:
+Parent print order:
 
 1. cadmium yellow
 2. hansa yellow
@@ -130,7 +167,7 @@ Print order:
 8. cobalt blue
 9. ivory black
 
-Comparison to the saved M10 build:
+Parent comparison to the saved M10 build:
 
 | Metric | Saved M10 | Role-Based Current |
 |---|---:|---:|
@@ -139,9 +176,9 @@ Comparison to the saved M10 build:
 | first 3 pull components | 2847 | 1364 |
 | solver wall time | 27.7s | 42.9s |
 
-Interpretation: the role-based solver makes the early pulls less fragmented,
-but pays a modest reconstruction cost. This is now the main branch because it is
-closer to the intended printmaking structure, not because it is finished.
+Interpretation: the parent role-based solver made early pulls less fragmented
+but still leaked final-image detail into color plates. This fork is testing the
+next structural constraint set before accepting more SVG/carving output.
 
 ## Setup
 
@@ -149,7 +186,7 @@ Use Python 3.11+ on Linux/WSL2 with an NVIDIA GPU. The current tested host uses
 JAX 0.10.0 with CUDA 13 packages.
 
 ```bash
-cd /home/reidsurmeier/src/woodblock-reidsurmeier-wtf
+cd /home/reidsurmeier/src/chuck-mcp-layering-lab
 
 python3 -m venv .venv-v23
 . .venv-v23/bin/activate
@@ -207,6 +244,7 @@ call_mcp_tool("forward_render", {"plan_id": plan_id})
 call_mcp_tool("score_stack_delta_e", {"plan_id": plan_id})
 call_mcp_tool("score_candidate_stack", {"plan_id": plan_id})
 call_mcp_tool("solver_telemetry", {"plan_id": plan_id})
+call_mcp_tool("suggest_pigment_mix", {"target_hex": "#c65a40"})
 call_mcp_tool("export_svg", {"plan_id": plan_id})
 call_mcp_tool("export_block_svgs", {"plan_id": plan_id})
 ```
@@ -222,15 +260,15 @@ Console entry point:
 Claude Code registration example:
 
 ```bash
-claude mcp add woodblock_stack --scope user -- \
+claude mcp add chuck_layering_lab --scope user -- \
   ssh reidsurmeier2@100.67.23.102 \
-  "wsl -d Ubuntu -- /home/reidsurmeier/src/woodblock-reidsurmeier-wtf/.venv-v23/bin/woodblock-mcp"
+  "wsl -d Ubuntu -- /home/reidsurmeier/src/chuck-mcp-layering-lab/.venv-v23/bin/chuck-layering-mcp"
 ```
 
 Then verify:
 
 ```bash
-claude mcp list | grep woodblock_stack
+claude mcp list | grep chuck_layering_lab
 ```
 
 ## Tool Surface
@@ -253,6 +291,7 @@ Primary tools:
 - `score_stack_delta_e`
 - `score_candidate_stack`
 - `solver_telemetry`
+- `suggest_pigment_mix`
 - `export_print_plan`
 - `export_svg`
 - `export_block_svgs`
@@ -299,8 +338,8 @@ MCP client
   -> S1 ingest
   -> S2 optional SAM gateway
   -> S3 hue family map
-  -> S4 Tan RGB warm start
-  -> S5 JAX role-based inverse solver
+  -> S4 layering-lab warm start
+  -> S5 JAX role/jigsaw inverse solver
   -> S6 three-state mask classifier
   -> S7 block packing
   -> S8 topology diagnostics/repair hooks
@@ -313,56 +352,53 @@ MCP client
 Current default rendering is Tier 1:
 
 - RGB/JAX forward stack
-- pigment anchors from the 13-pigment catalog
+- pigment anchors from the 24-pigment layering-lab catalog
 - rendered as if pigments were pre-mixed in a well
 
 This is directionally useful but not physically final mokuhanga overprint
-simulation. T2 empirical swatch correction exists as a local path after
-`upload_swatch_overprint_matrix`. Spectral/two-flux rendering remains future
-work.
+simulation. `suggest_pigment_mix` gives practical premix starting ratios for
+unavailable colors, but final color decisions still need swatches on the target
+paper. T2 empirical swatch correction exists as a local path after calibration.
+Spectral/two-flux rendering remains future work.
 
 ## What Is Still Not Fixed
 
-The current role-based solver is better aligned with printmaking intent, but it
-still needs:
+The layering-lab solver still needs:
 
 - SLIC/superpixel brushed-zone parameters for middle impressions
+- hard jigsaw region assignment before vectorization
+- explicit acceptance gates for base-role topology
 - hard pre-vectorization machinability scoring
 - component-count acceptance thresholds in normal tool output
 - better persistence of actual JAXopt `iter_num`, not just max iteration budget
 - broader test coverage across `/Volumes/woodblock/Examples`
 - more careful visual gates before accepting SVGs as carving geometry
 
-The build plan for the role-based solver lives here:
+The current lab build plan lives here:
 
 ```text
-docs/solver-role-based-build-plan.md
+docs/layering-lab-build-plan.md
 ```
 
 ## Tests
 
-Focused checks used for the current main:
+Focused checks for this fork:
 
 ```bash
-.venv-v23/bin/python -m ruff check \
-  backend/services/v23/stages/s5_solver.py \
+PYTHONPATH=. .venv-v23/bin/python -m pytest \
+  backend/tests/v23/unit/test_forward_render_km.py \
+  backend/tests/v23/stages/test_s4_warmstart.py \
   backend/tests/v23/stages/test_s5_solver.py \
-  backend/services/v23/orchestrator.py \
-  backend/tests/v23/stages/test_orchestrator.py \
-  backend/mcp/tools/core.py
-
-.venv-v23/bin/python -m pytest \
-  backend/tests/v23/stages/test_s5_solver.py \
-  backend/tests/v23/stages/test_orchestrator.py \
-  backend/tests/v23/direct/test_core_tools.py::test_propose_stack_is_real_solver_post_d14h \
-  backend/tests/v23/direct/test_core_tools.py::test_propose_stack_rejects_invalid_solve_profile \
+  backend/tests/v23/stages/test_s10_emit.py \
+  backend/tests/v23/direct/test_d9b_tools.py \
+  backend/tests/v23/unit/test_pydantic_block.py \
   -q
 ```
 
 Last focused result:
 
 ```text
-24 passed in 50.85s
+76 passed in 79.61s
 ```
 
 ## License

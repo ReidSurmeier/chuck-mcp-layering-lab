@@ -1,4 +1,4 @@
-"""D3.3 — session lifecycle for v23-MCP woodblock_stack.
+"""D3.3 — session lifecycle for Chuck MCP layering lab.
 
 Each session is a directory under ``~/.woodblock/v23/sessions/<ulid>/``
 containing ``session.json`` (created_at, pid, heartbeat) + plans under

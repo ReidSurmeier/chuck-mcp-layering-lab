@@ -114,7 +114,7 @@ def _template_fit(plan: _orch.PartialPlan) -> float:
 
 
 def _pigment_family_map(pigment_rgb_255) -> dict[int, str]:
-    """Coarse pigment → family lookup for the 13-catalog."""
+    """Coarse pigment -> family lookup for the Chuck catalog."""
     # Hand-mapping aligned with the catalog + family taxonomy
     return {
         0: "warm",    # cadmium_yellow
@@ -130,6 +130,17 @@ def _pigment_family_map(pigment_rgb_255) -> dict[int, str]:
         10: "warm",   # burnt_sienna
         11: "shadow", # raw_umber
         12: "detail", # ivory_black
+        13: "warm",   # yellow_ochre
+        14: "warm",   # raw_sienna
+        15: "shadow", # burnt_umber
+        16: "warm",   # alizarin_crimson
+        17: "warm",   # vermilion
+        18: "warm",   # naphthol_red
+        19: "cool",   # prussian_blue
+        20: "cool",   # phthalo_blue
+        21: "cool",   # cerulean_blue
+        22: "shadow", # phthalo_green
+        23: "shadow", # sap_green
     }
 
 

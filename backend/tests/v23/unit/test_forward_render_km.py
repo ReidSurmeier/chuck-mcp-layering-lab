@@ -86,9 +86,12 @@ def test_jit_compiles_and_runs() -> None:
     np.testing.assert_allclose(first, second, atol=1e-6)
 
 
-def test_pigment_table_has_13_entries() -> None:
-    """The 13-pigment Mixbox-anchored catalog must seed the LUT."""
-    assert forward_render_jax.PIGMENT_TABLE.shape == (13, 3)
+def test_pigment_table_matches_named_catalog() -> None:
+    """The Chuck pigment table must stay aligned with its names."""
+    assert forward_render_jax.PIGMENT_TABLE.shape == (
+        len(forward_render_jax.PIGMENT_NAMES), 3
+    )
+    assert len(forward_render_jax.PIGMENT_NAMES) == 24
     assert forward_render_jax.PIGMENT_TABLE.min() >= 0.0
     assert forward_render_jax.PIGMENT_TABLE.max() <= 1.0
 

@@ -70,7 +70,7 @@ def test_emit_zip_manifest_uses_v23_schema(tmp_path: Path, monkeypatch) -> None:
     assert "impressions" in manifest
     assert "blocks" in manifest
     assert "calibration" in manifest
-    assert manifest["calibration"]["source"] == "generic_mixbox_13"
+    assert manifest["calibration"]["source"] == "chuck_layering_lab_24"
 
 
 def test_emit_zip_recipe_carries_pre_mixed_qualifier(tmp_path: Path, monkeypatch) -> None:

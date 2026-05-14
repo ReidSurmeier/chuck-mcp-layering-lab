@@ -97,13 +97,13 @@ def test_s5_solver_role_layout_assigns_broad_mid_detail_pulls() -> None:
 def test_s5_solver_role_params_use_lower_resolution_underlayers() -> None:
     from backend.services.v23.stages import s5_solver
 
-    alpha = np.ones((9, 64, 64), dtype=np.float32) * 0.5
+    alpha = np.ones((9, 128, 128), dtype=np.float32) * 0.5
     layout = s5_solver._role_layout(9)
     params = s5_solver._make_role_params(alpha, layout)
 
     assert params["under"].shape == (3, 16, 16)
     assert params["mid"].shape == (4, 32, 32)
-    assert params["detail"].shape == (2, 64, 64)
+    assert params["detail"].shape == (2, 128, 128)
 
 
 def test_s5_solver_stage_budget_defaults_to_joint_solve(monkeypatch) -> None:
@@ -185,6 +185,7 @@ def test_s5_solver_respects_solve_profile_iter_budgets() -> None:
 
 def test_s5_solver_emits_impressions_in_print_order() -> None:
     """run_s5_solver returns impressions list with monotonic order_step starting at 1."""
+    from backend.services.v23.core import forward_render_jax
     from backend.services.v23.stages import s4_warmstart, s5_solver
 
     img = np.zeros((16, 16, 3), dtype=np.uint8)
@@ -199,7 +200,7 @@ def test_s5_solver_emits_impressions_in_print_order() -> None:
     steps = [imp["order_step"] for imp in result.impressions]
     assert steps == list(range(1, len(steps) + 1))
     for imp in result.impressions:
-        assert imp["pigment_id"] in range(13)
+        assert imp["pigment_id"] in range(len(forward_render_jax.PIGMENT_NAMES))
         assert 0.0 <= imp["coverage_pct"] <= 100.0
 
 

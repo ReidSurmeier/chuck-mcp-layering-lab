@@ -15,12 +15,7 @@ from backend.services.v23.core import color as _color
 from backend.services.v23.core import forward_render_jax as _fr
 from backend.services.v23.core import render_tier as _rt
 
-_PIGMENT_NAMES = [
-    "cadmium_yellow", "hansa_yellow", "cadmium_orange", "cadmium_red",
-    "quinacridone_magenta", "cobalt_violet", "ultramarine_blue",
-    "cobalt_blue", "viridian_green", "forest_green",
-    "burnt_sienna", "raw_umber", "ivory_black",
-]
+_PIGMENT_NAMES = _fr.PIGMENT_NAMES
 
 
 def _calibrations_dir() -> Path:
