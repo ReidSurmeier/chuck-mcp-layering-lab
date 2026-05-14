@@ -56,3 +56,17 @@ def test_plan_production_batches_writes_four_four_detail_plan(real_plan) -> None
     first_plate = r.data["batches"][0]["plates"][0]
     assert "cell_ids" in first_plate
     assert "suggested_alpha" in first_plate
+
+
+def test_plan_adaptive_ink_stack_solves_with_adaptive_colors(real_plan) -> None:
+    from backend.mcp.tools import planning
+
+    r = planning.plan_adaptive_ink_stack(real_plan.plan_id, max_plates=12)
+
+    assert r.ok is True, r.errors
+    assert Path(r.data["adaptive_plan_path"]).is_file()
+    assert r.data["diagnostics"]["template"] == "adaptive_ink_batches"
+    assert r.data["diagnostics"]["plate_count"] <= 12
+    plates = [p for batch in r.data["batches"] for p in batch["plates"]]
+    assert any("ink_rgb" in plate for plate in plates)
+    assert all("suggested_pigments" not in plate for plate in plates)

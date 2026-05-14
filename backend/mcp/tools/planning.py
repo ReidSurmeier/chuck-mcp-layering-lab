@@ -9,7 +9,7 @@ import numpy as np
 
 from backend.mcp.errors import ToolResult, WoodblockError
 from backend.services.v23 import orchestrator as _orch
-from backend.services.v23.stages import s6d_production_batches
+from backend.services.v23.stages import s6d_production_batches, s6e_adaptive_ink_stack
 
 
 def plan_production_batches(
@@ -88,4 +88,60 @@ def plan_production_batches(
     })
 
 
-__all__ = ["plan_production_batches"]
+def plan_adaptive_ink_stack(
+    plan_id: str,
+    *,
+    max_plates: int = 36,
+) -> ToolResult[dict[str, Any]]:
+    """Propose a solved adaptive ink-batch stack from target cells."""
+    try:
+        plan = _orch.load_plan(plan_id)
+    except _orch.OrchestratorError as exc:
+        return ToolResult(ok=False, data=None, errors=[exc.error])
+    plan_dir = Path(plan.alpha_stack_path).parent if plan.alpha_stack_path else None
+    if plan_dir is None or not (plan_dir / "target.npy").is_file():
+        return ToolResult(ok=False, data=None, errors=[
+            WoodblockError(
+                tier="refusal",
+                code="NO_TARGET_CACHE",
+                message="plan has no target.npy for adaptive ink planning",
+                recoverable=True,
+            )
+        ])
+    if not plan.cell_graph_path or not Path(plan.cell_graph_path).is_file():
+        return ToolResult(ok=False, data=None, errors=[
+            WoodblockError(tier="refusal", code="NO_CELL_GRAPH",
+                           message="plan has no persisted cell graph", recoverable=True)
+        ])
+    if not plan.cell_labels_path or not Path(plan.cell_labels_path).is_file():
+        return ToolResult(ok=False, data=None, errors=[
+            WoodblockError(tier="refusal", code="NO_CELL_LABELS",
+                           message="plan has no persisted cell label map", recoverable=True)
+        ])
+    target = np.load(plan_dir / "target.npy")
+    graph = json.loads(Path(plan.cell_graph_path).read_text())
+    labels = np.load(plan.cell_labels_path)
+    result = s6e_adaptive_ink_stack.plan_adaptive_ink_stack(
+        target.astype(np.float32),
+        cell_graph=graph,
+        cell_labels=labels.astype(np.int32),
+        max_plates=int(max_plates),
+    )
+    out_path = plan_dir / "adaptive_ink_stack_plan.json"
+    payload = {
+        "plan_id": plan_id,
+        "cell_labels_path": plan.cell_labels_path,
+        "diagnostics": result.diagnostics,
+        "batches": result.batches,
+    }
+    out_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+    return ToolResult(ok=True, data={
+        "plan_id": plan_id,
+        "adaptive_plan_path": str(out_path),
+        "cell_labels_path": plan.cell_labels_path,
+        "diagnostics": result.diagnostics,
+        "batches": result.batches,
+    })
+
+
+__all__ = ["plan_production_batches", "plan_adaptive_ink_stack"]

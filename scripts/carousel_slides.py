@@ -114,38 +114,75 @@ def _production_plate_preview(
     pigment_id = int(suggested.get("pigment_id", 0))
     alpha = float(plate.get("suggested_alpha", 0.4))
     mask = _cell_mask(labels, list(plate.get("cell_ids", [])))
+    pigment = (
+        np.asarray(plate["ink_rgb"], dtype=np.float32)
+        if "ink_rgb" in plate
+        else forward_render_jax.PIGMENT_TABLE[int(pigment_id)].astype(np.float32)
+    )
     paper = np.broadcast_to(
         forward_render_jax.PAPER_RGB.astype(np.float32),
         labels.shape + (3,),
     ).copy()
-    preview = _apply_plate(paper, mask, pigment_id, alpha)
+    preview = _apply_rgb_plate(paper, mask, pigment, alpha)
     return preview.astype(np.float32), pigment_id, alpha, mask
 
 
-def _contact_sheet(slides: list[Path], out_path: Path) -> None:
-    if not slides:
+def _apply_rgb_plate(
+    composite: NDArray[np.float32],
+    mask: NDArray[np.bool_],
+    pigment: NDArray[np.float32],
+    alpha: float,
+) -> NDArray[np.float32]:
+    a = np.zeros(mask.shape + (1,), dtype=np.float32)
+    a[mask] = float(np.clip(alpha, 0.0, 1.0))
+    return composite * (1.0 - a) + pigment[None, None, :] * a
+
+
+def _pull_block_grid(
+    pairs: list[tuple[str, NDArray[np.float32], NDArray[np.float32]]],
+    out_path: Path,
+    *,
+    title: str,
+) -> None:
+    """Write a two-row grid: cumulative pull above its matching block."""
+    if not pairs:
         return
-    cols = 4
-    thumb = (360, 234)
-    margin = 18
-    label_h = 26
-    rows = int(np.ceil(len(slides) / cols))
+    cols = len(pairs)
+    img_h, img_w = pairs[0][1].shape[:2]
+    margin = 14
+    label_h = 30
+    title_h = 58
+    row_label_w = 128
+    max_w = 5400
+    thumb_w = max(118, min(220, (max_w - row_label_w - (cols + 1) * margin) // cols))
+    thumb_h = max(1, int(round(thumb_w * img_h / float(img_w))))
+    cell_h = label_h + thumb_h
+    width = row_label_w + cols * thumb_w + (cols + 1) * margin
+    height = title_h + margin + 2 * cell_h + margin * 3
     sheet = Image.new(
         "RGB",
-        (cols * thumb[0] + (cols + 1) * margin,
-         rows * (thumb[1] + label_h) + (rows + 1) * margin),
+        (width, height),
         (245, 241, 230),
     )
     draw = ImageDraw.Draw(sheet)
-    font = ImageFont.load_default()
-    for idx, path in enumerate(slides):
-        col = idx % cols
-        row = idx // cols
-        x = margin + col * (thumb[0] + margin)
-        y = margin + row * (thumb[1] + label_h + margin)
-        draw.text((x, y), path.stem[:52], fill=(20, 20, 20), font=font)
-        img = Image.open(path).convert("RGB").resize(thumb, Image.Resampling.LANCZOS)
-        sheet.paste(img, (x, y + label_h))
+    title_font = ImageFont.load_default(size=28)
+    font = ImageFont.load_default(size=17)
+    draw.text((margin, 18), title, fill=(20, 20, 20), font=title_font)
+    row_y = [title_h + margin, title_h + margin * 2 + cell_h]
+    draw.text((margin, row_y[0] + label_h + thumb_h // 2 - 10), "PRINT", fill=(20, 20, 20), font=font)
+    draw.text((margin, row_y[1] + label_h + thumb_h // 2 - 10), "BLOCK", fill=(20, 20, 20), font=font)
+    for idx, (label, pull_rgb, block_rgb) in enumerate(pairs):
+        x = row_label_w + margin + idx * (thumb_w + margin)
+        pull_id = label.split(" ", 1)[0] if label else f"{idx + 1:02d}"
+        for row, rgb in enumerate((pull_rgb, block_rgb)):
+            y = row_y[row]
+            text = f"{'P' if row == 0 else 'B'}{pull_id}"
+            draw.text((x, y), text, fill=(20, 20, 20), font=font)
+            img = Image.fromarray(_as_u8(rgb), "RGB").resize(
+                (thumb_w, thumb_h),
+                Image.Resampling.LANCZOS,
+            )
+            sheet.paste(img, (x, y + label_h))
     out_path.parent.mkdir(parents=True, exist_ok=True)
     sheet.save(out_path)
 
@@ -168,23 +205,24 @@ def _add_production_sequence(
     out_dir: Path,
     slide_paths: list[Path],
     batch_plan: dict[str, Any] | None,
-) -> None:
+) -> list[tuple[str, NDArray[np.float32], NDArray[np.float32]]]:
     if not batch_plan:
-        return
+        return []
     labels_path = batch_plan.get("cell_labels_path")
     if not labels_path or not Path(labels_path).is_file():
-        return
+        return []
     labels = np.load(labels_path).astype(np.int32)
     composite = np.broadcast_to(
         forward_render_jax.PAPER_RGB.astype(np.float32),
         labels.shape + (3,),
     ).copy()
+    pairs: list[tuple[str, NDArray[np.float32], NDArray[np.float32]]] = []
     pull_no = 0
     for batch in batch_plan.get("batches", []):
         for plate in batch.get("plates", []):
             pull_no += 1
             preview, pigment_id, alpha, mask = _production_plate_preview(labels, plate)
-            name = forward_render_jax.PIGMENT_NAMES[int(pigment_id)]
+            name = str(plate.get("ink_hex") or forward_render_jax.PIGMENT_NAMES[int(pigment_id)])
             role = str(plate.get("role", f"plate_{pull_no:02d}"))
             slide = out_dir / f"slide_prod_{pull_no:03d}_plate_{role}_{name}.png"
             _slide(
@@ -199,19 +237,26 @@ def _add_production_sequence(
             )
             slide_paths.append(slide)
 
-            composite = _apply_plate(composite, mask, pigment_id, alpha)
+            pigment_rgb = (
+                np.asarray(plate["ink_rgb"], dtype=np.float32)
+                if "ink_rgb" in plate
+                else forward_render_jax.PIGMENT_TABLE[int(pigment_id)].astype(np.float32)
+            )
+            composite = _apply_rgb_plate(composite, mask, pigment_rgb, alpha)
+            pairs.append((f"{pull_no:02d} {role}", composite.copy(), preview.copy()))
             slide = out_dir / f"slide_prod_{pull_no:03d}_after_{role}_{name}.png"
             _slide(
-                f"Production Composite After Pull {pull_no:02d}",
+                f"Cumulative Print After Production Pull {pull_no:02d}",
                 Image.fromarray(_as_u8(composite), "RGB"),
                 slide,
-                subtitle=f"{batch.get('name')} / {role}",
+                subtitle=f"Added B{pull_no:02d}: {role} / {name}",
                 notes=[
-                    "This shows the proposed production print developing by batch.",
-                    "Use this to judge the Pace-style 4 + 4 + detail logic.",
+                    "This is cumulative; earlier pulls remain visible and may dominate the image.",
+                    "Use the matching block slide/grid row to inspect only the current plate.",
                 ],
             )
             slide_paths.append(slide)
+    return pairs
 
 
 def build_carousel_slides(
@@ -246,14 +291,21 @@ def build_carousel_slides(
     slide = out_dir / "slide_001_batch_plan.png"
     _slide("Production Batch Plan", batch_img, slide, notes=_batch_notes(batch_plan))
     slide_paths.append(slide)
-    _add_production_sequence(out_dir=out_dir, slide_paths=slide_paths, batch_plan=batch_plan)
+    production_pairs = _add_production_sequence(
+        out_dir=out_dir,
+        slide_paths=slide_paths,
+        batch_plan=batch_plan,
+    )
 
+    solver_pairs: list[tuple[str, NDArray[np.float32], NDArray[np.float32]]] = []
     for i, (alpha, pid, frame) in enumerate(
         zip(alpha_stack, pigment_idx, cumulative_frames, strict=True),
         start=1,
     ):
         name = forward_render_jax.PIGMENT_NAMES[int(pid)]
-        plate = Image.fromarray(_as_u8(_plate_preview(alpha, int(pid))), "RGB")
+        plate_rgb = _plate_preview(alpha, int(pid))
+        solver_pairs.append((f"{i:02d} {name}", frame.copy(), plate_rgb.copy()))
+        plate = Image.fromarray(_as_u8(plate_rgb), "RGB")
         slide = out_dir / f"slide_{i * 2:03d}_pull_{i:02d}_plate_{name}.png"
         _slide(
             f"Pull {i:02d} Plate",
@@ -270,13 +322,13 @@ def build_carousel_slides(
         cumulative = Image.fromarray(_as_u8(frame), "RGB")
         slide = out_dir / f"slide_{i * 2 + 1:03d}_after_pull_{i:02d}_{name}.png"
         _slide(
-            f"After Pull {i:02d}",
+            f"Cumulative Print After Pull {i:02d}",
             cumulative,
             slide,
-            subtitle=name,
+            subtitle=f"Added B{i:02d}: {name}",
             notes=[
-                "This shows the print developing after the current pull.",
-                "Review whether this stage reads like a plausible Pace-style batch progression.",
+                "This is cumulative; earlier pulls remain visible and may dominate the image.",
+                "Use the matching block slide/grid row to inspect only the current plate.",
             ],
         )
         slide_paths.append(slide)
@@ -290,12 +342,25 @@ def build_carousel_slides(
     )
     slide_paths.append(slide)
 
-    _contact_sheet(slide_paths, out_dir / "carousel_contact_sheet.png")
+    solver_grid = out_dir / "solver_pull_block_grid.png"
+    _pull_block_grid(solver_pairs, solver_grid, title="Flat Solver: Pulls Above, Blocks Below")
+    production_grid: Path | None = None
+    if production_pairs:
+        production_grid = out_dir / "production_pull_block_grid.png"
+        _pull_block_grid(
+            production_pairs,
+            production_grid,
+            title="Production Proposal: Pulls Above, Blocks Below",
+        )
+    contact_sheet = production_grid or solver_grid
+    (out_dir / "carousel_contact_sheet.png").write_bytes(contact_sheet.read_bytes())
     manifest = {
         "run_name": run_name,
         "slide_count": len(slide_paths),
         "slides": [str(path) for path in slide_paths],
         "contact_sheet": str(out_dir / "carousel_contact_sheet.png"),
+        "production_pull_block_grid": str(production_grid) if production_grid else None,
+        "solver_pull_block_grid": str(solver_grid),
     }
     (out_dir / "carousel_manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     return out_dir

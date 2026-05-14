@@ -98,6 +98,13 @@ but physical mokuhanga color needs swatches and calibration before editioning.
   - final batch: regional hue shifts, shadows, contours, and key/detail regions
   - writes `production_batch_plan.json`
 
+- Adaptive ink and proof-state planner:
+  - treats print colors as adaptive ink batches, not a fixed pigment list
+  - estimates block count from image complexity instead of forcing 27 plates
+  - generates cumulative pull previews after every block
+  - generates proof previews after small block batches, matching the Chuck Close
+    reference methodology
+
 - Carousel review export:
   - writes one slide per plate and one slide after each cumulative pull
   - includes both the production-batch proposal and the flat solver sequence
@@ -122,6 +129,7 @@ Important tools:
 - `score_printability`
 - `propose_plate_reorganization`
 - `plan_production_batches`
+- `plan_adaptive_ink_stack`
 - `export_print_plan`
 - `export_svg`
 - `export_block_svgs`
@@ -221,6 +229,54 @@ Latest reviewed carousel:
 That run produced 75 carousel slides, including 48 production-proposal slides
 and the flat solver pull sequence.
 
+## Methodology Proof Preview
+
+The Chuck Close reference proof image shows cumulative proofs after small block
+batches, not one proof per individual block. The current methodology generator
+follows that pattern:
+
+```bash
+PYTHONPATH=. \
+.venv-v23/bin/python scripts/methodology_proof_states.py \
+  --run-name methodology-adaptive-proofs-emma-v13-20260514
+```
+
+Latest reviewed output:
+
+```text
+/srv/woodblock-share/chuck-methodology-proofs/latest-emma
+```
+
+Clean handoff folder:
+
+```text
+/srv/woodblock-share/mcp v12
+```
+
+Open first:
+
+```text
+/srv/woodblock-share/chuck-methodology-proofs/latest-emma/methodology_full_pull_preview.png
+/srv/woodblock-share/chuck-methodology-proofs/latest-emma/methodology_proof_preview.png
+/srv/woodblock-share/chuck-methodology-proofs/latest-emma/target_vs_methodology_final.png
+```
+
+Current Emma methodology run:
+
+| Metric | Value |
+|---|---:|
+| adaptive blocks | 26 |
+| proof snapshots | 7 |
+| proof end blocks | 4, 8, 12, 16, 20, 24, 26 |
+| mean DeltaE76 | 4.982 |
+| p95 DeltaE76 | 9.343 |
+
+Important interpretation: `26` is an adaptive result for this input, not a hard
+rule. The methodology is to choose as many blocks as the image needs, then show
+cumulative proofs after small block batches. The first four blocks are separated
+into pale warm, pale pink, pale cool, and pale detail scaffolds so block 1 is
+not already a fully formed proof.
+
 ## Current Validation Result
 
 Latest run:
@@ -292,6 +348,9 @@ Last local result:
 
 ## Known Gaps
 
+- Methodology proof states are not CNC-safe plate geometry yet.
+- The proof generator currently creates plausible proof-state previews; it
+  still needs a downstream block-region/vectorization pass.
 - Production batch planning is still a proposal, not a solver-mutating stage.
 - The carousel proposal does not yet optimize batch composites against the
   target.

@@ -322,7 +322,7 @@ def test_tier_modules_export_expected_tool_counts() -> None:
         hitl: 11,           # 8 listed + 2 aliases + cell reorganization proposal
         calibration: 5,
         introspection: 10,  # 7 legacy + cell_at/inspect_cell/score_printability
-        planning: 1,
+        planning: 2,
         session: 4,
         carve: 3,
         overlay: 4,
