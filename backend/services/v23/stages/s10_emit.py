@@ -118,6 +118,7 @@ def _build_manifest(plan: _orch.PartialPlan) -> dict[str, Any]:
             for i in range(plan.block_count)
         ],
         "pull_groups": plan.pull_groups,
+        "production_scale": _production_scale_manifest(plan),
         "state_summary": plan.state_summary,
         "reconstruction": {
             "dE_mean": plan.reconstruction_dE_mean,
@@ -136,9 +137,33 @@ def _build_manifest(plan: _orch.PartialPlan) -> dict[str, Any]:
     }
 
 
+def _production_scale_manifest(plan: _orch.PartialPlan) -> dict[str, Any]:
+    return {
+        "status": "compressed_study",
+        "solver_impressions": len(plan.impressions),
+        "solver_blocks": plan.block_count,
+        "reference": {
+            "name": "Emma reference scale",
+            "woodblocks": 27,
+            "colors": 113,
+            "pulls": 132,
+        },
+        "note": (
+            "This ZIP contains a compressed solver study unless a later production "
+            "planner expands it into many jigsaw block regions, mixed-color recipes, "
+            "and repeated pulls."
+        ),
+    }
+
+
 def _build_recipe_md(plan: _orch.PartialPlan) -> str:
     lines = [
         f"# Print recipe — {plan.plan_id}",
+        "",
+        "> **Scale note**: this is a compressed solver study, not an Emma-scale",
+        "> production block plan. The project reference scale is 27 woodblocks,",
+        "> 113 colors, and 132 pulls; final planning needs an expansion stage for",
+        "> jigsaw regions, premix recipes, and repeated pulls.",
         "",
         "> **Note on color simulation (t1_mixbox)**: this recipe was rendered as if",
         "> pigments were pre-mixed in a well before application. Actual mokuhanga",

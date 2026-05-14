@@ -269,6 +269,8 @@ def propose_stack(
             "template_confidence": plan.template_confidence,
             "m_prior": plan.m_prior,
             "impression_count": len(plan.impressions),
+            "block_count": plan.block_count,
+            "production_scale": _production_scale_summary(plan),
             "dominant_family": plan.dominant_family,
             "family_areas": plan.family_areas,
             "sam_region_count": len(plan.sam_regions),
@@ -281,6 +283,43 @@ def propose_stack(
             "solver_downsample_scale": plan.solver_downsample_scale,
         },
     )
+
+
+def _production_scale_summary(plan: _orch.PartialPlan) -> dict[str, Any]:
+    """Explain that S5 is a compressed study stack, not a production pull count."""
+    impression_count = len(plan.impressions)
+    block_count = int(plan.block_count)
+    reference = {
+        "name": "Emma reference scale",
+        "woodblocks": 27,
+        "colors": 113,
+        "pulls": 132,
+        "source": "artist/user-provided production reference",
+    }
+    status = "compressed_study"
+    if impression_count >= 80 or block_count >= 20:
+        status = "production_scale_candidate"
+    elif impression_count >= 24 or block_count >= 12:
+        status = "expanded_study"
+
+    return {
+        "status": status,
+        "solver_impressions": impression_count,
+        "solver_blocks": block_count,
+        "reference": reference,
+        "adequacy": (
+            "The current S5 output is a compressed solver study for testing role "
+            "logic and cumulative color behavior. It should not be read as an "
+            "adequate production plan for an Emma-scale print unless a later "
+            "production planner expands it into many more jigsaw blocks, mixed "
+            "colors, and repeated pulls."
+        ),
+        "next_planner_target": {
+            "block_faces": "dozens, not single digits, for Emma-scale complexity",
+            "pulls": "potentially 100+ when matching the reference method",
+            "color_recipes": "explicit premix recipes and repeated pulls per block",
+        },
+    }
 
 
 # ---------------------------------------------------------------------------

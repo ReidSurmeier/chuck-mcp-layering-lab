@@ -106,6 +106,11 @@ def test_propose_stack_is_real_solver_post_d14h(tmp_path: Path, monkeypatch) -> 
     assert res.ok is True
     assert res.data is not None
     assert res.data["plan_id"]
+    assert res.data["block_count"] >= 0
+    scale = res.data["production_scale"]
+    assert scale["status"] in {"compressed_study", "expanded_study", "production_scale_candidate"}
+    assert scale["reference"]["woodblocks"] == 27
+    assert scale["reference"]["pulls"] == 132
     # Solver is real now — no stale impl-pending banner
     codes = {e.code for e in res.errors}
     assert "IMPL_PENDING_SOLVER" not in codes

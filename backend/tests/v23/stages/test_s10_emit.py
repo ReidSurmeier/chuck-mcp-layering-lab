@@ -71,6 +71,8 @@ def test_emit_zip_manifest_uses_v23_schema(tmp_path: Path, monkeypatch) -> None:
     assert "blocks" in manifest
     assert "calibration" in manifest
     assert manifest["calibration"]["source"] == "chuck_layering_lab_24"
+    assert manifest["production_scale"]["status"] == "compressed_study"
+    assert manifest["production_scale"]["reference"]["woodblocks"] == 27
 
 
 def test_emit_zip_recipe_carries_pre_mixed_qualifier(tmp_path: Path, monkeypatch) -> None:

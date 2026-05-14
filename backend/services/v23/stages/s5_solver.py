@@ -38,6 +38,7 @@ _MIDPASS_WINDOW = 12
 _UNDERPASS_WINDOW = 32
 _SPECKLE_WINDOW = 9
 _UNDER_CONTROL_FACTOR = 12
+_UNDER_CARVE_FACTOR = 2
 _MID_CONTROL_FACTOR = 4
 _UNDER_TARGET_STRENGTH = 0.42
 _MID_TARGET_STRENGTH = 0.72
@@ -225,6 +226,14 @@ def _make_role_params(
         )
         under = _resize_alpha_stack(under_src, (under_w, under_h))
         params["under"] = jnp.asarray(_logit_np(under), dtype=jnp.float32)
+        carve_h, carve_w = _control_shape((h, w), _UNDER_CARVE_FACTOR)
+        carve_gate = np.clip(
+            alpha_stack[: layout.under_end] / np.maximum(under_src, 0.08),
+            0.02,
+            0.98,
+        ).astype(np.float32)
+        carve = _resize_alpha_stack(carve_gate, (carve_w, carve_h))
+        params["under_carve"] = jnp.asarray(_logit_np(carve), dtype=jnp.float32)
     if layout.mid_count:
         mid_h, mid_w = _control_shape((h, w), _MID_CONTROL_FACTOR)
         mid = _resize_alpha_stack(
@@ -257,8 +266,19 @@ def _expand_role_params(
     h, w = target_shape
     parts: list[jnp.ndarray] = []
     if layout.under_count:
-        under = _sigmoid_box(params["under"])
-        parts.append(_resize_alpha_jax(under, (layout.under_count, h, w)))
+        envelope = _resize_alpha_jax(
+            _sigmoid_box(params["under"]),
+            (layout.under_count, h, w),
+        )
+        if "under_carve" in params:
+            carve = _resize_alpha_jax(
+                _sigmoid_box(params["under_carve"]),
+                (layout.under_count, h, w),
+            )
+            under = envelope * carve
+        else:
+            under = envelope
+        parts.append(jnp.clip(under, 0.0, 1.0))
     if layout.mid_count:
         mid = _sigmoid_box(params["mid"])
         parts.append(_resize_alpha_jax(mid, (layout.mid_count, h, w)))
@@ -335,7 +355,7 @@ def _solver_loss(
             under_loss
             + 0.100 * _layered_alpha_tv(alpha_under)
             + 0.160 * _alpha_speckle(alpha_under)
-            + 0.220 * _alpha_highfreq(alpha_under, _UNDERPASS_WINDOW)
+            + 0.025 * _alpha_highfreq(alpha_under, _UNDERPASS_WINDOW)
         )
     if stage == "mid":
         alpha_prefix = alpha[: layout.mid_end]
@@ -345,7 +365,7 @@ def _solver_loss(
             + 0.25 * under_loss
             + 0.060 * _layered_alpha_tv(alpha_prefix)
             + 0.080 * _alpha_speckle(alpha_prefix)
-            + 0.045 * _alpha_highfreq(alpha[: layout.under_end], _UNDERPASS_WINDOW)
+            + 0.018 * _alpha_highfreq(alpha[: layout.under_end], _UNDERPASS_WINDOW)
             + _JIGSAW_OVERLAP_WEIGHT * _pairwise_overlap(alpha_mid)
         )
 
@@ -375,7 +395,7 @@ def _solver_loss(
         + 0.015 * under_loss
         + 0.030 * tv
         + 0.045 * speckle
-        + 0.060 * under_highfreq
+        + 0.018 * under_highfreq
         + _JIGSAW_OVERLAP_WEIGHT * mid_overlap
         + 0.015 * dark_on_bright
     )

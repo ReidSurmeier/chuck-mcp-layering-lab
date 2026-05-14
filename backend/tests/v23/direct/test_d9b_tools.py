@@ -165,6 +165,8 @@ def test_get_emma_priors_has_six_families() -> None:
     r = introspection.get_emma_priors()
     assert r.ok is True
     assert len(r.data["hue_families"]) == 7  # 6 + accent
+    assert r.data["production_reference_scale"]["woodblocks"] == 27
+    assert r.data["production_reference_scale"]["pulls"] == 132
 
 
 def test_get_defaults_has_solve_profile_table() -> None:

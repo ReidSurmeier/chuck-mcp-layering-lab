@@ -17,10 +17,10 @@ The current `main` branch contains the layering-lab fork:
 - parent fork point: `6db6f11 Rewrite Chuck MCP README for role-based solver`
 
 The parent solver works on GPU and produces a real overlapping pull stack. This
-fork changes the next hypothesis: early base plates must be broad by
-construction, middle color plates should prefer separated jigsaw regions, and
-missing colors should be expressible as pigment-mix recipes instead of forcing
-the optimizer to invent noisy masks.
+fork changes the next hypothesis: early base plates need broad support roles
+with detailed carved geometry allowed inside those roles, middle color plates
+should prefer separated jigsaw regions, and missing colors should be expressible
+as pigment-mix recipes instead of forcing the optimizer to invent noisy masks.
 
 ## What It Does
 
@@ -38,6 +38,25 @@ The system does **not** recover historical or true underlayers from an image.
 It designs plausible underprint candidates under the current pigment/rendering
 model.
 
+## Scale Reality
+
+The current JAX stack is a compressed study stack, not a full production plan.
+For the Emma reference, the production scale you provided is 27 woodblocks, 113
+colors, and 132 pulls. A 9-10 impression solver output can test whether the role
+logic is moving in the right direction, but it should not be treated as adequate
+for carving or editioning an Emma-scale print.
+
+The next planner layer needs to expand solved roles into many jigsaw regions,
+block faces, mixed-color recipes, and repeated pulls. In other words:
+
+```text
+S5 solver study: 8-12 differentiable role planes
+Production plan: dozens of block/jigsaw regions and potentially 100+ pulls
+```
+
+`propose_stack` now reports `production_scale` so low-count outputs are labeled
+as compressed studies rather than final block/pull plans.
+
 ## Layering Lab Direction
 
 The reference images in `/srv/woodblock-share/Examples` show a different
@@ -46,17 +65,18 @@ construction logic from the earlier pixel-reconstruction runs:
 - the first block is light yellow because the reference needs a high-luminance
   warm support field; in another image this role should be the lightest broad
   support pigment selected from that image
-- base colors carry large diffuse areas before final detail appears
+- base colors carry coherent large roles, but the plate reference shows that
+  intricate carved detail can still appear inside those roles
 - red is a separate color role here because it is a high-chroma regional accent
   with crisp boundaries, not because the solver should always add red
 - later hue shifts are jigsawed as separated regional blocks with clear borders
 - optical mixing comes from stack order, local opacity, and premixed pigment
   choices, not from every plate fading into every neighbor
 
-That makes the most important failure clear: broad base roles must not start as
-skinny pixel-level detail. In this fork, the first support role is inferred from
-low-frequency target structure, and high-chroma regional colors are seeded as
-their own accent plates when warranted.
+That makes the most important failure clear: broad base roles must not collapse
+into scattered pixel-level color decisions. In this fork, the first support role
+is inferred from low-frequency target structure, but the solver can preserve
+carved internal detail through an envelope-gated detail mask.
 
 ## Current Solver Changes
 
@@ -66,22 +86,22 @@ The current S5 solver uses:
 - light-to-dark print ordering, with black/key detail last
 - bounded internal solve grids for 2K images on 12 GB GPUs
 - a role layout after print ordering:
-  - early pulls: broad underlayer controls
+  - early pulls: broad-role support controls
   - middle pulls: regional color/shadow controls
   - final pulls: detail/key controls
 - different parameterization by role:
-  - underlayers use a 12x coarser control grid
+  - underlayers use a 12x coarser support envelope plus a 2x carved-detail gate
   - middle impressions use a 4x coarser control grid
   - detail impressions remain full solve-grid
 - a role-aware warm start:
-  - broad underlayer seed from low-frequency color/tonal structure
+  - broad-role support seed from low-frequency color/tonal structure
   - underlayer pigment inferred from broad-support color, preferring lighter
     pigments early
   - separate high-chroma accent seed when a regional hue shift exists
   - base-hue Tan seeds are blurred before reaching S5
 - jigsaw pressure for middle plates:
   - pairwise overlap penalty between middle color plates
-  - stronger high-frequency penalty on underlayers
+  - underlayer detail is allowed when it stays inside the support envelope
 - edge-weighted RGB loss
 - low-pass target loss
 - layer-weighted TV
@@ -106,7 +126,8 @@ role-parameterized groups while changing the warm-start and role geometry.
 
 ## Solve Profiles
 
-`propose_stack` accepts `solve_profile` and optional `m_prior`.
+`propose_stack` accepts `solve_profile` and optional `m_prior`. In this fork,
+`m_prior` is a solver-study role budget, not the final production pull count.
 
 | Profile | Max L-BFGS iterations | Default `m_prior` | Internal pixel budget |
 |---|---:|---:|---:|
@@ -114,7 +135,8 @@ role-parameterized groups while changing the warm-start and role geometry.
 | `default` | 180 | 8 | 512k |
 | `thorough` | 400 | 10 | 768k |
 
-`m_prior` is validated from 4 through 12.
+`m_prior` is validated from 4 through 12 because it controls the current JAX
+study stack. Production planning must happen in a later expansion stage.
 
 For large images, the solver optimizes on a bounded internal grid and returns
 full-resolution masks/previews. Override the grid cap with:

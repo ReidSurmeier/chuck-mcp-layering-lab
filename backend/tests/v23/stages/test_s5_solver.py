@@ -94,7 +94,7 @@ def test_s5_solver_role_layout_assigns_broad_mid_detail_pulls() -> None:
     assert layout.mid_end == 7
 
 
-def test_s5_solver_role_params_use_lower_resolution_underlayers() -> None:
+def test_s5_solver_role_params_use_underlayer_envelope_plus_carve_gate() -> None:
     from backend.services.v23.stages import s5_solver
 
     alpha = np.ones((9, 128, 128), dtype=np.float32) * 0.5
@@ -102,8 +102,24 @@ def test_s5_solver_role_params_use_lower_resolution_underlayers() -> None:
     params = s5_solver._make_role_params(alpha, layout)
 
     assert params["under"].shape == (3, 16, 16)
+    assert params["under_carve"].shape == (3, 64, 64)
     assert params["mid"].shape == (4, 32, 32)
     assert params["detail"].shape == (2, 128, 128)
+
+
+def test_s5_solver_underlayer_carve_gate_preserves_internal_detail() -> None:
+    from backend.services.v23.stages import s5_solver
+
+    alpha = np.zeros((5, 64, 64), dtype=np.float32)
+    alpha[0, 8:56, 8:56] = 0.8
+    alpha[0, 16:48:4, 8:56] = 0.05  # carved/reserved line detail inside region
+    alpha[1:] = 0.4
+    layout = s5_solver._role_layout(5)
+    params = s5_solver._make_role_params(alpha, layout)
+    expanded = np.asarray(s5_solver._expand_role_params(params, layout, (64, 64)))
+
+    inside = expanded[0, 8:56, 8:56]
+    assert inside.max() - inside.min() > 0.20
 
 
 def test_s5_solver_stage_budget_defaults_to_joint_solve(monkeypatch) -> None:

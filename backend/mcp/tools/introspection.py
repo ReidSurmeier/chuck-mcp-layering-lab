@@ -35,6 +35,15 @@ def get_emma_priors() -> ToolResult[dict[str, Any]]:
         "underprint_area_ratio_range": [1.5, 4.0],
         "keyblock_rule": "darkest detail impression gets highest order_step",
         "pigments_per_block_target": {"mean": 3.0, "cap": 5, "floor": 1},
+        "production_reference_scale": {
+            "woodblocks": 27,
+            "colors": 113,
+            "pulls": 132,
+            "note": (
+                "Use this as an Emma-scale complexity reference. Current S5 "
+                "m_prior is a compressed study budget, not a production pull count."
+            ),
+        },
     })
 
 
@@ -86,6 +95,10 @@ def get_defaults() -> ToolResult[dict[str, Any]]:
         "ambiguous_band": {"pixel_dE_gt": 3.0, "mask_mean_gt": 1.5},
         "block_count_target": 6,
         "block_count_cap": 10,
+        "block_count_note": (
+            "legacy study-stack target; Emma-scale production planning can require "
+            "dozens of blocks and 100+ pulls"
+        ),
         "min_island_px_at_300dpi": 60,
         "kento_dilation_px_at_300dpi": 3,
         "schema_version": "v23.0",
