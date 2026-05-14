@@ -181,6 +181,18 @@ def test_s5_solver_emits_darkest_impression_last() -> None:
     assert result.impressions[-1]["pigment_id"] == 12
 
 
+def test_print_order_keeps_support_tints_before_high_chroma_red() -> None:
+    from backend.services.v23.stages import s5_solver
+
+    alpha = np.ones((4, 8, 8), dtype=np.float32) * 0.3
+    pigment_idx = np.asarray([17, 21, 13, 12], dtype=np.int32)
+
+    order = s5_solver._print_order(alpha, pigment_idx)
+    ordered = pigment_idx[order].tolist()
+
+    assert ordered == [13, 21, 17, 12]
+
+
 def test_s5_solver_respects_solve_profile_iter_budgets() -> None:
     """fast / default / thorough produce different iter counts."""
     from backend.services.v23.stages import s4_warmstart, s5_solver

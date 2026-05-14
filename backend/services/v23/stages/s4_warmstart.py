@@ -19,9 +19,16 @@ from numpy.typing import NDArray
 from PIL import Image, ImageFilter
 
 from backend.algorithms.decomposition import tan_rgb_geometry as _tan
+from backend.services.v23.core import color as _color
 from backend.services.v23.core import forward_render_jax as _fr
 
 _LIGHT_UNDERLAYER_PIGMENTS = (0, 1, 2, 13, 14, 21, 23)
+_SUBTLE_TINT_PIGMENTS: tuple[tuple[str, tuple[int, ...]], ...] = (
+    ("cool", (21, 7, 20, 6)),
+    ("pink", (17, 3, 16, 4)),
+    ("green", (23, 8, 22)),
+    ("warm", (13, 14, 1, 0)),
+)
 _PIGMENT_GROUPS = (
     (0, 1, 13),          # yellow / ochre
     (2, 10, 14, 15),     # orange / earth
@@ -34,6 +41,7 @@ _PIGMENT_GROUPS = (
 _CHROMA_PLATE_PIGMENTS = tuple(
     sorted({pid for group in _PIGMENT_GROUPS[:-1] for pid in group})
 )
+_KEY_DETAIL_PIGMENTS = (12, 11, 15, 19, 20)
 _LAB_WARMSTART_MAX_IMPRESSIONS = 12
 
 
@@ -150,6 +158,56 @@ def _chroma_plate_seed(rgb: NDArray[np.uint8]) -> NDArray[np.float32]:
     return _smooth_alpha(alpha.astype(np.float32), radius=max(3.0, min(rgb.shape[:2]) / 96.0))
 
 
+def _dark_key_seed(rgb: NDArray[np.uint8]) -> NDArray[np.float32]:
+    """Late key/detail seed from dark target structure."""
+    arr = rgb.astype(np.float32) / 255.0
+    r, g, b = arr[..., 0], arr[..., 1], arr[..., 2]
+    lum = 0.299 * r + 0.587 * g + 0.114 * b
+    dx = np.pad(np.abs(lum[:, 1:] - lum[:, :-1]), ((0, 0), (0, 1)))
+    dy = np.pad(np.abs(lum[1:, :] - lum[:-1, :]), ((0, 1), (0, 0)))
+    edge = np.sqrt(dx * dx + dy * dy)
+    edge = edge / max(float(edge.max()), 1e-6)
+    dark = np.clip((0.44 - lum) / 0.34, 0.0, 1.0)
+    alpha = np.clip((0.72 * dark + 0.28 * dark * edge) * 0.88, 0.0, 0.88)
+    return _smooth_alpha(alpha.astype(np.float32), radius=max(1.25, min(rgb.shape[:2]) / 180.0))
+
+
+def _subtle_tint_seeds(rgb: NDArray[np.uint8]) -> list[tuple[NDArray[np.float32], int]]:
+    """Detect pale near-paper hue shifts that should print instead of reading as white.
+
+    Mokuhanga highlights often live as low-alpha blue/grey/pink/yellow washes.
+    A plain paper-distance gate misses those because their RGB values are close
+    to the substrate. Lab opponent axes make the small hue shifts visible.
+    """
+    arr = rgb.astype(np.float32) / 255.0
+    lab = _color.srgb_to_lab(arr)
+    paper_lab = _color.srgb_to_lab(_fr.PAPER_RGB.reshape(1, 1, 3))[0, 0]
+    delta = lab - paper_lab[None, None, :]
+    d_e = np.sqrt(np.sum(delta * delta, axis=-1))
+    luminance = 0.299 * arr[..., 0] + 0.587 * arr[..., 1] + 0.114 * arr[..., 2]
+    light_region = np.clip((luminance - 0.48) / 0.34, 0.0, 1.0)
+    subtle = np.clip((d_e - 1.2) / 16.0, 0.0, 1.0) * light_region
+    a_axis = delta[..., 1]
+    b_axis = delta[..., 2]
+    axes = {
+        "cool": np.clip((-b_axis + 0.20 * -a_axis) / 9.0, 0.0, 1.0),
+        "pink": np.clip((a_axis + 0.20 * -b_axis) / 9.0, 0.0, 1.0),
+        "green": np.clip((-a_axis + 0.12 * b_axis) / 9.0, 0.0, 1.0),
+        "warm": np.clip((b_axis + 0.12 * a_axis) / 9.0, 0.0, 1.0),
+    }
+
+    seeds: list[tuple[NDArray[np.float32], int]] = []
+    for name, candidates in _SUBTLE_TINT_PIGMENTS:
+        alpha = np.clip(subtle * axes[name] * 0.34, 0.0, 0.34).astype(np.float32)
+        alpha = _smooth_alpha(alpha, radius=max(4.0, min(rgb.shape[:2]) / 88.0))
+        if float((alpha > 0.025).mean()) < 0.006:
+            continue
+        tint_color = _weighted_mean_rgb(rgb, alpha)
+        pid = _choose_nearest_pigment(tint_color, candidates, prefer_light=True)
+        seeds.append((alpha, pid))
+    return seeds
+
+
 def _weighted_mean_rgb(
     rgb: NDArray[np.uint8],
     alpha: NDArray[np.float32],
@@ -167,12 +225,16 @@ def _choose_nearest_pigment(
     candidates: tuple[int, ...],
     *,
     prefer_light: bool = False,
+    prefer_dark: bool = False,
 ) -> int:
     pigments = _fr.PIGMENT_TABLE[np.asarray(candidates, dtype=np.int32)]
     d2 = np.sum((pigments - rgb_01[None, :]) ** 2, axis=-1)
     if prefer_light:
         lum = 0.299 * pigments[:, 0] + 0.587 * pigments[:, 1] + 0.114 * pigments[:, 2]
         d2 = d2 + 0.10 * (1.0 - lum)
+    if prefer_dark:
+        lum = 0.299 * pigments[:, 0] + 0.587 * pigments[:, 1] + 0.114 * pigments[:, 2]
+        d2 = d2 + 0.12 * lum
     return int(candidates[int(np.argmin(d2))])
 
 
@@ -215,6 +277,8 @@ def layering_lab_warmstart(
 
     role_alphas: list[NDArray[np.float32]] = []
     role_pigments: list[int] = []
+    suppress_tan_groups: list[int] = []
+    suppress_tan_exact: set[int] = set()
 
     underlayer = _broad_underlayer_seed(rgb)
     underlayer_pid: int | None = None
@@ -227,29 +291,52 @@ def layering_lab_warmstart(
         )
         role_alphas.append(underlayer)
         role_pigments.append(underlayer_pid)
+        suppress_tan_groups.append(underlayer_pid)
+
+    for tint_alpha, tint_pid in _subtle_tint_seeds(rgb):
+        if any(_same_pigment_group(tint_pid, pid) for pid in suppress_tan_groups):
+            continue
+        if tint_pid in role_pigments:
+            continue
+        role_alphas.append(tint_alpha)
+        role_pigments.append(tint_pid)
+        suppress_tan_exact.add(tint_pid)
 
     chroma = _chroma_plate_seed(rgb)
     chroma_pid: int | None = None
     if float((chroma > 0.08).mean()) >= 0.002:
         chroma_color = _weighted_mean_rgb(rgb, chroma)
         chroma_pid = _choose_nearest_pigment(chroma_color, _CHROMA_PLATE_PIGMENTS)
-        role_alphas.append(chroma)
-        role_pigments.append(chroma_pid)
+        if underlayer_pid is None or not _same_pigment_group(chroma_pid, underlayer_pid):
+            role_alphas.append(chroma)
+            role_pigments.append(chroma_pid)
+            suppress_tan_groups.append(chroma_pid)
+        else:
+            chroma_pid = None
+
+    key = _dark_key_seed(rgb)
+    key_pid: int | None = None
+    if float((key > 0.08).mean()) >= 0.004:
+        key_color = _weighted_mean_rgb(rgb, key)
+        key_lum = float(0.299 * key_color[0] + 0.587 * key_color[1] + 0.114 * key_color[2])
+        key_pid = 12 if key_lum < 0.32 else _choose_nearest_pigment(
+            key_color,
+            _KEY_DETAIL_PIGMENTS,
+            prefer_dark=True,
+        )
+        role_alphas.append(key)
+        role_pigments.append(key_pid)
+        suppress_tan_groups.append(key_pid)
 
     explicit_seed_count = len(role_pigments)
 
     for alpha, pid in zip(base.alpha_stack, base.pigment_idx, strict=True):
         pid = int(pid)
-        if underlayer_pid is not None and _same_pigment_group(pid, underlayer_pid):
-            # The broad base hue should not re-enter as a skinny detail mask.
-            smoothed = _smooth_alpha(alpha, radius=max(6.0, min(rgb.shape[:2]) / 48.0))
-            if float((smoothed > 0.08).mean()) >= 0.01:
-                role_alphas.append(np.clip(smoothed * 0.72, 0.0, 0.72))
-                role_pigments.append(pid)
+        if any(_same_pigment_group(pid, seed_pid) for seed_pid in suppress_tan_groups):
+            # Explicit role seeds own these families; Tan must not add another
+            # unlabeled copy that later appears as a duplicate pull.
             continue
-        if chroma_pid is not None and _same_pigment_group(pid, chroma_pid):
-            # Keep high-chroma shifts as one intentional regional plate unless
-            # later explicit jigsaw splitting asks for more subregions.
+        if pid in suppress_tan_exact:
             continue
         role_alphas.append(alpha.astype(np.float32))
         role_pigments.append(pid)

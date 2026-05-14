@@ -39,6 +39,17 @@ def test_overlapping_impressions_get_different_blocks() -> None:
     assert result.impression_to_block["imp_001"] != result.impression_to_block["imp_002"]
 
 
+def test_low_alpha_tint_impressions_still_conflict_when_overlapping() -> None:
+    from backend.services.v23.stages.s7_block_pack import pack_blocks
+
+    alphas = np.zeros((2, 8, 8), dtype=np.float32)
+    alphas[0, :, :] = 0.12
+    alphas[1, :, :] = 0.12
+    result = pack_blocks(alphas)
+
+    assert result.block_count == 2
+
+
 def test_three_overlap_three_blocks() -> None:
     """Three pairwise-overlapping impressions need three blocks."""
     from backend.services.v23.stages.s7_block_pack import pack_blocks

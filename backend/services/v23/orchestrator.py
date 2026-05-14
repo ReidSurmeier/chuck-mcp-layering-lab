@@ -31,6 +31,7 @@ from backend.services.v23.stages import (
     s4_warmstart,
     s5_solver,
     s6_three_state_mask,
+    s6b_jigsaw_organize,
     s7_block_pack,
 )
 
@@ -73,7 +74,9 @@ class PartialPlan:
     pull_groups: list[dict[str, Any]] = field(default_factory=list)
     state_stack_path: str | None = None
     alpha_stack_path: str | None = None
+    raw_alpha_stack_path: str | None = None
     pigment_idx: list[int] = field(default_factory=list)
+    jigsaw_summary: dict[str, Any] = field(default_factory=dict)
     created_at: str = ""
 
 
@@ -186,7 +189,9 @@ def run_pipeline_partial(
     pull_groups: list[dict[str, Any]] = []
     state_stack_path: str | None = None
     alpha_stack_path: str | None = None
+    raw_alpha_stack_path: str | None = None
     pigment_idx_list: list[int] = []
+    jigsaw_summary: dict[str, Any] = {}
     if os.environ.get("WOODBLOCK_DISABLE_SOLVER") != "1":
         try:
             import numpy as _np
@@ -202,7 +207,6 @@ def run_pipeline_partial(
                 alpha_init=warm.alpha_stack,
                 solve_profile=solve_profile,
             )
-            impressions = solve_result.impressions
             solver_status = "OK"
             solver_wall_s = solve_result.wall_s
             solver_optimized_shape = [int(v) for v in solve_result.optimized_shape]
@@ -220,7 +224,19 @@ def run_pipeline_partial(
                 forward_render_jax as _fr,
             )
 
-            alpha_hwm = _np.transpose(solve_result.alpha_stack, (1, 2, 0))
+            organized = s6b_jigsaw_organize.organize_jigsaw_regions(
+                solve_result.alpha_stack,
+                _np.asarray(solve_result.pigment_idx, dtype="int32"),
+                target_rgb=target,
+            )
+            final_alpha_stack = organized.alpha_stack
+            jigsaw_summary = organized.diagnostics
+            impressions = s5_solver.summarise_impressions(
+                final_alpha_stack,
+                solve_result.pigment_idx,
+            )
+
+            alpha_hwm = _np.transpose(final_alpha_stack, (1, 2, 0))
             rendered_jax = _fr.forward_render(
                 _jnp.asarray(alpha_hwm, dtype=_jnp.float32),
                 _jnp.asarray(solve_result.pigment_idx, dtype=_jnp.int32),
@@ -231,7 +247,7 @@ def run_pipeline_partial(
             reconstruction_dE_p95 = round(de_summary["dE_p95"], 3)
 
             # S6 — three-state mask classification post-solve
-            state_stack = s6_three_state_mask.classify_three_state(solve_result.alpha_stack)
+            state_stack = s6_three_state_mask.classify_three_state(final_alpha_stack)
             state_summary = s6_three_state_mask.summarise_states(state_stack)
 
             # Persist state_stack + alpha_stack + pigment_idx as .npy under the
@@ -240,18 +256,21 @@ def run_pipeline_partial(
             pdir = _plan_dir(handle.session_id, plan_id_preview)
             state_path = pdir / "state_stack.npy"
             alpha_path = pdir / "alpha_stack.npy"
+            raw_alpha_path = pdir / "alpha_stack_raw_solver.npy"
             pigment_path = pdir / "pigment_idx.npy"
             target_path = pdir / "target.npy"
             _np.save(state_path, state_stack)
-            _np.save(alpha_path, solve_result.alpha_stack)
+            _np.save(alpha_path, final_alpha_stack)
+            _np.save(raw_alpha_path, solve_result.alpha_stack)
             _np.save(pigment_path, _np.asarray(solve_result.pigment_idx, dtype="int32"))
             _np.save(target_path, target)
             state_stack_path = str(state_path)
             alpha_stack_path = str(alpha_path)
+            raw_alpha_stack_path = str(raw_alpha_path)
             pigment_idx_list = list(solve_result.pigment_idx)
 
             # S7 — DSATUR-style block packing post-solve
-            pack = s7_block_pack.pack_blocks(solve_result.alpha_stack)
+            pack = s7_block_pack.pack_blocks(final_alpha_stack)
             block_count = pack.block_count
             impression_to_block = pack.impression_to_block
             impression_to_face = pack.impression_to_face
@@ -290,7 +309,9 @@ def run_pipeline_partial(
         pull_groups=pull_groups,
         state_stack_path=state_stack_path,
         alpha_stack_path=alpha_stack_path,
+        raw_alpha_stack_path=raw_alpha_stack_path,
         pigment_idx=pigment_idx_list,
+        jigsaw_summary=jigsaw_summary,
         created_at=_now_iso(),
     )
     _persist_plan(plan)

@@ -22,7 +22,7 @@ from typing import Any
 import numpy as np
 from numpy.typing import NDArray
 
-_VIS_THRESHOLD: float = 0.40  # α above this counts as "printed" for IoU
+_VIS_THRESHOLD: float = 0.08  # low-alpha tint pulls still count as printed
 
 
 @dataclass(frozen=True)

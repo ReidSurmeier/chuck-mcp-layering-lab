@@ -118,6 +118,11 @@ def test_partial_pipeline_with_solver_returns_real_impressions(tmp_path: Path, m
     assert all("::face_" in v for v in result.impression_to_face.values())
     assert result.state_stack_path is not None
     assert Path(result.state_stack_path).is_file()
+    assert result.alpha_stack_path is not None
+    assert Path(result.alpha_stack_path).is_file()
+    assert result.raw_alpha_stack_path is not None
+    assert Path(result.raw_alpha_stack_path).is_file()
+    assert isinstance(result.jigsaw_summary, dict)
 
 
 def test_partial_pipeline_persists_plan_json(tmp_path: Path, monkeypatch) -> None:

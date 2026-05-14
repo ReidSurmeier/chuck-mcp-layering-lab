@@ -43,6 +43,8 @@ _MID_CONTROL_FACTOR = 4
 _UNDER_TARGET_STRENGTH = 0.42
 _MID_TARGET_STRENGTH = 0.72
 _JIGSAW_OVERLAP_WEIGHT = 0.012
+_SUPPORT_PIGMENTS = frozenset({0, 1, 13, 14, 21, 23})
+_DARK_KEY_PIGMENTS = frozenset({11, 12, 15, 19, 20})
 
 
 @dataclass(frozen=True)
@@ -124,13 +126,20 @@ def _avg_pool_alpha(alpha: jnp.ndarray, window: int = _SPECKLE_WINDOW) -> jnp.nd
 
 
 def _target_edge_weight(target_rgb: jnp.ndarray) -> jnp.ndarray:
-    """Detail-aware weights from target luminance gradients."""
+    """Detail-aware weights plus near-paper tint sensitivity."""
     lum = _rgb_luminance(target_rgb)
     dx = jnp.pad(jnp.abs(lum[:, 1:] - lum[:, :-1]), ((0, 0), (0, 1)))
     dy = jnp.pad(jnp.abs(lum[1:, :] - lum[:-1, :]), ((0, 1), (0, 0)))
     edge = jnp.sqrt(dx * dx + dy * dy + 1e-8)
     edge = edge / (jnp.max(edge) + 1e-6)
-    return 1.0 + 3.0 * edge[..., None]
+    paper = jnp.asarray(forward_render_jax.PAPER_RGB, dtype=jnp.float32)
+    paper_delta = jnp.sqrt(jnp.sum((target_rgb - paper[None, None, :]) ** 2, axis=-1))
+    near_paper_tint = (
+        jax.nn.sigmoid((lum - 0.50) * 12.0)
+        * jax.nn.sigmoid((paper_delta - 0.018) * 48.0)
+        * jax.nn.sigmoid((0.26 - paper_delta) * 18.0)
+    )
+    return (1.0 + 3.0 * edge + 5.0 * near_paper_tint)[..., None]
 
 
 def _layered_alpha_tv(alpha: jnp.ndarray) -> jnp.ndarray:
@@ -297,7 +306,7 @@ def _print_order(
     alpha_stack: NDArray[np.float32],
     pigment_idx: NDArray[np.int32],
 ) -> NDArray[np.int64]:
-    """Return stable light-to-dark print order for alpha/pigment slots."""
+    """Return stable print order: light support, mid chroma, dark key."""
     pigment_rgb = forward_render_jax.PIGMENT_TABLE[pigment_idx]
     luminance = (
         0.299 * pigment_rgb[:, 0]
@@ -305,8 +314,15 @@ def _print_order(
         + 0.114 * pigment_rgb[:, 2]
     )
     coverage = alpha_stack.mean(axis=(1, 2))
-    # Primary key: high luminance first. Secondary key: broad supports first.
-    return np.lexsort((-coverage, -luminance))
+    priority = np.array([
+        0 if int(pid) in _SUPPORT_PIGMENTS
+        else 2 if int(pid) in _DARK_KEY_PIGMENTS
+        else 1
+        for pid in pigment_idx.tolist()
+    ], dtype=np.int32)
+    # Primary key: support -> mid chroma -> dark key. Secondary keys keep each
+    # band light-to-dark and put broad supports before small marks.
+    return np.lexsort((-coverage, -luminance, priority))
 
 
 def _reorder_for_printing(
@@ -392,7 +408,7 @@ def _solver_loss(
         weighted_rgb
         + 0.65 * lowpass
         + 0.040 * mid_loss
-        + 0.015 * under_loss
+        + 0.055 * under_loss
         + 0.030 * tv
         + 0.045 * speckle
         + 0.018 * under_highfreq
@@ -424,6 +440,15 @@ def _alphas_to_impressions(
             "luminance_okL": round(luminance_okL, 4),
         })
     return impressions
+
+
+def summarise_impressions(
+    alpha_stack: NDArray[np.float32],
+    pigment_idx: NDArray[np.int32] | tuple[int, ...],
+) -> list[dict[str, Any]]:
+    """Public impression summaries for post-solve organized alpha stacks."""
+    pigment_tuple = tuple(int(p) for p in pigment_idx)
+    return _alphas_to_impressions(alpha_stack.astype(np.float32), pigment_tuple)
 
 
 def _max_solver_pixels(solve_profile: str) -> int:
@@ -629,4 +654,4 @@ def run_s5_solver(
     )
 
 
-__all__ = ["SolverResult", "run_s5_solver"]
+__all__ = ["SolverResult", "run_s5_solver", "summarise_impressions"]
