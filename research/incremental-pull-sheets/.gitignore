@@ -1,0 +1,4 @@
+# Reference images in this folder are intentionally tracked for the private
+# Chuck MCP research repo.
+*.tmp
+.DS_Store
