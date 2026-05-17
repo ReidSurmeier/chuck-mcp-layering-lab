@@ -7,6 +7,7 @@ set -u
 ITER="$1"
 PROFILE="${2:-thorough}"
 M_PRIOR="${3:-26}"
+: "${PYTHONPATH:=}"
 
 REPO=/home/reidsurmeier/src/chuck-mcp-layering-lab
 WORKDIR=$REPO/research/v5-overnight/loop-runner
