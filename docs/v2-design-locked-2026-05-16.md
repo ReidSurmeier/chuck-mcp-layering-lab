@@ -1,9 +1,44 @@
-# chuck-mcp v2 — Design Locked
+# chuck-mcp v2 — Design Locked (AUDIT-CORRECTED 2026-05-17)
 
-Date: 2026-05-16
-Source: grill-me session (28 questions, all answered) + two ruflo research swarms (12 implementation agents) + `docs/reconstruction-plan-2026-05-16.md`
+Date: 2026-05-16, **audit-corrected 2026-05-17**
+Source: grill-me session (28 questions) + two ruflo research swarms (12 implementation agents) + `docs/reconstruction-plan-2026-05-16.md` + **`docs/audit-response-and-reconstruction-plan-2026-05-17.md`** (overrides 5 grilling locks) + Sharma/Wu/Dalal CIEDE2000 paper (gradient-discontinuity gotcha)
 
 This document is the canonical V1 design contract. Build against this.
+
+## AUDIT OVERRIDES (2026-05-17) — read first
+
+The 2026-05-17 audit run produced a fresh Emma plan that FAILED `plate_not_composite` on 7/12 alpha planes, mean ΔE 12.086, p95 33.026. Validator works; solver doesn't. Five grilling locks are overridden:
+
+| # | Prior lock | Override | Source |
+|---|---|---|---|
+| 1 | Q25: incremental refactor (keep v13 solver, bolt on continuity) | **Solver must be production-shaped from start**: alternating optimization (cell-graph proposal → graph-cut/ILP plate assignment → JAX continuous solve for opacity/dilution/color only → morphology repair → re-solve). JAX is ONE STAGE, not the architecture. Adaptive 24-30 plates, not fixed 12 + post-hoc expansion. | Audit §Phase 2-4 |
+| 2 | Q9 + Q16: edition of 10, calibration deferred | **Incompatible.** V1 ships as single artist's proof. Edition-of-10 promoted to V2 (calibration required). | Audit §7 |
+| 3 | Q24: V1.0 in 5 weeks at one-block validation | **Not credible.** Adjusted: V1.0 = credible digital proof sheets (~3 weeks). V1.5 = one physical proof (~6 weeks). V2.0 = edition-capable (~12 weeks). | Audit §6 |
+| 4 | MediaPipe removed in favor of Opus 4.7 vision | **RISKY without benchmark.** Anthropic vision docs explicitly warn about spatial reasoning + small-object counting. Keep MediaPipe; benchmark Opus on 10 annotated overlays; require Jaccard/F1 ≥ 0.95 before Opus writes cell IDs; auto-fallback to MediaPipe below threshold. | Audit §1 |
+| 5 | Q12: load-bearing via singleton ablation only | **Needs pair ablation + regional specificity.** Singleton misses cancellation pairs and small regional accents. Add pair ablation for high-overlap candidates + regional-specific scoring (named region with contiguous changed area ≥ 0.20% AND mean ΔE_2000 ≥ 2.0 OR p95 ≥ 5.0). | Audit §2 |
+
+## CIEDE2000 IMPLEMENTATION CAVEAT (Sharma/Wu/Dalal 2005)
+
+CIEDE2000 has three mathematical discontinuities that **break gradient-based optimization**. From the paper directly:
+
+> "These discontinuities preclude the use of the formula in analysis based on Taylor series approximations and in design techniques using gradient based optimization."
+
+Worst case: discontinuity up to 0.27 ΔE for samples within 5 ΔE*_ab — concentrated around mean hue 143° (deep blue/violet — Emma's hair/shadow zones).
+
+**Required split for chuck-mcp:**
+
+| Use case | Metric |
+|---|---|
+| JAX solver inner-loop loss (gradient-required) | **ΔE_76 or smooth ΔE_94** — differentiable everywhere |
+| Outer-loop counterfactual ablation (discrete comparison) | ΔE_2000 OK |
+| Validator scoring (`final_match_score`, after-the-fact) | ΔE_2000 |
+| Per-pull contribution heatmap | ΔE_2000 |
+
+**Implementation correctness gates** (chuck-mcp's CIEDE2000 must pass Table I in Sharma 2005 — all 34 pairs to 4 decimal places):
+- Use **atan2** (4-quadrant), not atan, for hue
+- Keep **signed** ΔC' and ΔH' (not absolute); cross-term R_T depends on signs
+- Mean hue h̄' boundary case at |h'_1 − h'_2| > 180° per Eq. (14)
+- Hue-diff Δh' sign at exactly 180° apart per Eq. (10)
 
 ## Mission
 
@@ -178,46 +213,34 @@ export_carving_files(
 └── previous_plan.json            # symlink → plan_vN.json (latest signed-off)
 ```
 
-## Build sequence (locked per Q25 + reconstruction doc adjustments)
+## Build sequence (AUDIT-CORRECTED 2026-05-17 per Phase 0-6)
 
-Incremental refactor of existing chuck-mcp-layering-lab v23 pipeline.
+Replaces prior week-by-week. Solver architecture is production-shaped from start (NOT incremental refactor of v13's compressed-stack solver).
 
-**Week 1 — Representation fix + domain objects.**
-- Add `Plate`, `Pull`, `ProofState` dataclasses per reconstruction Stage 1
-- SNIC drop-in for SLIC (S3.b cell graph)
-- STE binarization for mask outputs (hard-sigmoid + Heaviside warmup; per binary-mask-jax research)
-- Wire `plate_not_composite_score` validator from day 1 — blocks any v13-style residual-render output
-- Mill-sized morphology gate (area-opening + opening-by-reconstruction sized by physical end-mill)
-- Horizontal flip on plate SVG export
+| Phase | Scope | Estimate |
+|---|---|---|
+| **0** | Freeze 2026-05-17 audit run as failing baseline. Do NOT judge future work by final ΔE alone. | done |
+| **1** | Example-grounded acceptance harness from `/srv/woodblock-share/Examples`. Side-by-side contact sheet generator (reference row / current proof row / current block row / alpha row). Visual criteria: early proof density, local color grouping, dark-key timing, background timing, block separability, no full-face residual plates. | Week 1 |
+| **2** | Solve production structure directly. Adaptive plate count (24-30 prior for Emma-scale). Multi-pull-per-block as first-class variables. Block/pull identity solved WITH target reconstruction. 4+4+16 is a prior, not a rigid grid. | Weeks 2-3 |
+| **3** | Plate organization INTO objective. Loss terms: final image, checkpoint proof, `plate_not_composite` per plate, cell exclusivity/jigsaw, role coverage caps, role-frequency permission (yellow can have detailed carved structure if first/transparent), load-bearing singleton+pair ablation, printability in-loop. **ΔE_76 in solver loss, ΔE_2000 in validators** (CIEDE2000 gradient discontinuity per Sharma 2005). | Week 3 |
+| **4** | Hybrid alternating optimization (NOT pure α-maps). Cell-graph proposal → plate assignment via graph-cut/ILP exclusivity → JAX continuous solve for opacity/dilution/color per pull → morphology repair + component scoring → re-solve after repair. JAX optimizes pigment/load only. JAX does NOT invent printable topology from unconstrained alpha. | Weeks 4-5 |
+| **5** | Premix colors flexible. Planner outputs target batch color + closest available pigment OR premix recipe with ratios + opacity/dilution/load guidance + measured-swatch fallback notes. Pigment catalog is inventory, not hard palette. | Week 5 |
+| **6** | CNC/printability BEFORE SVG (not cleanup). Connected components above minimum area + no hairline islands + no unbrushable adjacent colors on same block + clear jigsaw separations + known registration/mirror state. Reject before vectorization, not after. | Week 6 |
+| **bench** | Opus vision benchmark: 10 annotated overlays, require Jaccard/F1 ≥ 0.95 for cell-ID assignment before Opus is allowed to write cell IDs. MediaPipe pipeline stays as automatic fallback below threshold. | parallel Week 1-2 |
 
-**Week 2 — Block partition + role assignment + mirrored plate rendering.**
-- Cell-graph role assignment pass (algorithmic baseline)
-- Graph partition cells into 27 physical blocks (DSATUR + chordality cert + MaxRects face packer per first-swarm research)
-- Render `Plate.svg` from cell-zone assignments (mirrored, kento-jig-aligned)
-- Wire the other 5 validators with hard gates
-- Render the 5 required review sheets per reconstruction Stage 5
+**V1.0 ship** = Phase 1-3 complete: credible digital proof sheets, validators gating, no v13-style residuals. NOT physical proof. NOT edition. (~Week 3.)
+**V1.5 ship** = Phase 4-6 complete: one physical proof pull on washi. Calibration optional. (~Week 6.)
+**V2.0 ship** = edition-of-10 capable. Calibration REQUIRED (DSLR rig + ColorChecker + Finlayson 2015 CCM from V2 calibration research). (~Week 12.)
 
-**Week 3 — Continuity + LLM + iteration loop.**
-- Continuity objective in solver loss (gradient×mask + counterfactual ablation per load-bearing research)
-- Soto-kento jig SVG generation
-- LLM prompt translation via Opus 4.7 single forced tool-call + strict schema (per llm-prompt-translation research)
-- Algorithm proposes underlayer baseline; text overrides apply on top
-- Anchored iteration via `previous_plan.json` warm-start
-- Single-block patch (`regenerate_blocks` tool)
+**Immediate engineering tasks (from audit §Reconstruction Plan):**
+1. Replace post-hoc `plan_production_batches` with solver-facing production layout object.
+2. Add example-comparison command emitting single audit sheet beside reference examples.
+3. Hard gate: every generated physical block must pass `plate_not_composite` before any final ΔE is considered.
+4. Pairwise load-bearing ablation for high-overlap pulls.
+5. Cell-assignment Jaccard benchmark before trusting Opus vision for cell IDs.
+6. Minimal calibration workflow before calling anything edition-ready (V2 only).
 
-**Week 4 — Web app + carving export.**
-- chuck.reidsurmeier.wtf Next.js frontend (themed like color.reidsurmeier.wtf)
-- Cloudflare tunnel ingress
-- Preview UI (composite + block grid + scrubber + sidebar + interpretation panel)
-- Verification UI (side-by-side vs Hokusai reference + heatmap + score + 6 validators)
-- Sign-off + `export_carving_files` MCP tool
-- Auto-upscale integration with color-separator over Tailscale
-
-**Week 5 — One-block validation.**
-- Reid carves block_01 (lightest, most forgiving)
-- Prints one proof pull on washi using soto-kento jig
-- Confirms physical reality matches digital plan
-- V1.0 tag cut
+**Packaging fix applied 2026-05-17:** added `PyYAML>=6.0` to base deps + `shapely>=2.0` to `io` optional deps in pyproject.toml.
 
 ## Deferred to V2 (explicit)
 
