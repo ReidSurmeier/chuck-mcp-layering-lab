@@ -1,0 +1,234 @@
+# chuck-mcp v3 / v5 — Emma Pigment Library (V1, uncalibrated catalog approximations)
+# ===================================================================================
+#
+# Purpose
+# -------
+# Concrete pigment inventory that satisfies the 7-family taxonomy in
+# `research/v3-construction/mokuhanga-rule-classifier/rule_table.yaml`.
+#
+# Each entry maps to a real artist pigment plausibly available in Reid's
+# studio for Chuck Close "Emma 2002"-style portrait work. Lab values are
+# catalog approximations sampled from manufacturer color charts (Holbein,
+# Daniel Smith, Schmincke, traditional Japanese gansai catalogs). They are
+# explicitly marked `uncalibrated_v1: true` and MUST be replaced with
+# physically-measured swatches before any quantitative ΔE work.
+#
+# Schema per entry
+# ----------------
+#   <pigment_name>:
+#     family: <one of light_yellow|pale_pink|pale_orange|pale_red|
+#                     pale_blue|pale_green|warm_grey>
+#     lab_values: [L*, a*, b*]   # D50 sRGB->Lab catalog approx
+#     opacity_curve: [(dilution, opacity), ...]   # at least 2 points 0..1
+#     source_note: <short citation describing where the lab values came from>
+#     uncalibrated_v1: true       # hard-coded — V1 has no measured swatches
+#     ci_pigment: <CI shorthand, e.g. PY3>
+#     notes: <printmaker context, optional>
+#
+# Calibration plan (V2)
+# ---------------------
+# Replace each `lab_values` with a spectrophotometer reading of the
+# pigment printed on Shiramine washi at three dilution ratios (1:0,
+# 1:2, 1:5). Replace `opacity_curve` with measured K-M k/s ratios.
+# Set `uncalibrated_v1: false` once a pigment is calibrated.
+
+meta:
+  version: "0.1.0"
+  date: "2026-05-17"
+  agent: "MOKUHANGA-PIGMENTS"
+  swarm: "swarm-1778989256284-xvs2l5"
+  applies_to: ["close_emma_2002", "chuck_close_portraits", "front_facing_portraits"]
+  calibration_status: "uncalibrated_v1"
+  family_taxonomy_source: "research/v3-construction/mokuhanga-rule-classifier/rule_table.yaml"
+  expected_v1_dE_uncertainty: 6.0   # ±6 ΔE_76 from real swatches per family
+
+# --------------------------------------------------------------------- #
+# YELLOW FAMILY                                                         #
+# --------------------------------------------------------------------- #
+
+light_yellow:
+  family: light_yellow
+  lab_values: [92.0, -3.0, 56.0]
+  opacity_curve: [[0.0, 0.10], [0.5, 0.22], [1.0, 0.40]]
+  source_note: "Holbein Hansa Yellow Light (PY3) catalog approx, sampled at 30% dilution"
+  uncalibrated_v1: true
+  ci_pigment: PY3
+  notes: "Canonical Pace 'first plate' value-foundation pigment for Close portraits."
+
+yellow_ochre:
+  family: light_yellow
+  lab_values: [74.0, 9.0, 48.0]
+  opacity_curve: [[0.0, 0.18], [0.5, 0.38], [1.0, 0.62]]
+  source_note: "Daniel Smith Yellow Ochre (PY43) catalog approx"
+  uncalibrated_v1: true
+  ci_pigment: PY43
+  notes: "Earth yellow; warmer than light_yellow; subs for light_yellow when stronger warmth needed."
+
+raw_sienna:
+  family: light_yellow
+  lab_values: [62.0, 16.0, 44.0]
+  opacity_curve: [[0.0, 0.20], [0.5, 0.42], [1.0, 0.68]]
+  source_note: "Holbein Raw Sienna (PBr7) catalog approx"
+  uncalibrated_v1: true
+  ci_pigment: PBr7
+  notes: "Warm earth; transition pigment between yellow_ochre and burnt_umber."
+
+# --------------------------------------------------------------------- #
+# PINK / RED FAMILY                                                     #
+# --------------------------------------------------------------------- #
+
+pale_pink:
+  family: pale_pink
+  lab_values: [85.0, 16.0, 6.0]
+  opacity_curve: [[0.0, 0.10], [0.5, 0.20], [1.0, 0.34]]
+  source_note: "Holbein Quinacridone Magenta (PR122) at high dilution"
+  uncalibrated_v1: true
+  ci_pigment: PR122
+  notes: "Cool pink — beni analog. Use under lips, temples, and cheek warm-shift."
+
+rose_lilac_wash:
+  family: pale_pink
+  lab_values: [82.0, 18.0, -2.0]
+  opacity_curve: [[0.0, 0.10], [0.5, 0.18], [1.0, 0.30]]
+  source_note: "Schmincke Rose Madder dilute (PR83) catalog approx"
+  uncalibrated_v1: true
+  ci_pigment: PR83
+  notes: "Slightly violet pink; eye_socket pre-glaze or hair cool-warm play."
+
+peach_wash:
+  family: pale_orange
+  lab_values: [83.0, 14.0, 24.0]
+  opacity_curve: [[0.0, 0.12], [0.5, 0.22], [1.0, 0.36]]
+  source_note: "Holbein Peach Pink (PR101+PO48 blend) catalog approx"
+  uncalibrated_v1: true
+  ci_pigment: PR101_PO48_blend
+  notes: "Forehead-to-hairline transition; warm-to-cool boundary preparation."
+
+pale_orange:
+  family: pale_orange
+  lab_values: [82.0, 18.0, 32.0]
+  opacity_curve: [[0.0, 0.12], [0.5, 0.24], [1.0, 0.40]]
+  source_note: "Holbein Permanent Orange (PO48) high dilution catalog approx"
+  uncalibrated_v1: true
+  ci_pigment: PO48
+  notes: "Canonical mid-warm transition pigment; rule_table 'pale_orange' family default."
+
+light_orange:
+  family: pale_orange
+  lab_values: [80.0, 24.0, 50.0]
+  opacity_curve: [[0.0, 0.14], [0.5, 0.28], [1.0, 0.46]]
+  source_note: "Holbein Permanent Orange (PO48) dilute"
+  uncalibrated_v1: true
+  ci_pigment: PO48
+  notes: "Warm transition zone; background warm-field choice; neck shadow warm-base."
+
+vermilion:
+  family: pale_red
+  lab_values: [56.0, 60.0, 50.0]
+  opacity_curve: [[0.0, 0.30], [0.5, 0.55], [1.0, 0.80]]
+  source_note: "Holbein Vermilion Hue (PR255) catalog approx"
+  uncalibrated_v1: true
+  ci_pigment: PR255
+  notes: "Lip core saturation source; canonical Close lip pigment."
+
+scarlet:
+  family: pale_red
+  lab_values: [50.0, 64.0, 44.0]
+  opacity_curve: [[0.0, 0.30], [0.5, 0.58], [1.0, 0.84]]
+  source_note: "Daniel Smith Pyrrol Scarlet (PR255 / PR254 blend)"
+  uncalibrated_v1: true
+  ci_pigment: PR254
+  notes: "Stronger red alternative; mid-build chroma for cheek-flush passes."
+
+alizarin_crimson:
+  family: pale_red
+  lab_values: [38.0, 50.0, 24.0]
+  opacity_curve: [[0.0, 0.32], [0.5, 0.62], [1.0, 0.88]]
+  source_note: "Holbein Alizarin Crimson Hue (PR177) catalog approx"
+  uncalibrated_v1: true
+  ci_pigment: PR177
+  notes: "Cool red; deeper lip core; brow value transition."
+
+# --------------------------------------------------------------------- #
+# BLUE FAMILY                                                           #
+# --------------------------------------------------------------------- #
+
+pale_blue:
+  family: pale_blue
+  lab_values: [80.0, -4.0, -16.0]
+  opacity_curve: [[0.0, 0.08], [0.5, 0.16], [1.0, 0.28]]
+  source_note: "Holbein Phthalo Blue (PB15) at very high dilution"
+  uncalibrated_v1: true
+  ci_pigment: PB15
+  notes: "Canonical cool-support underlayer; jaw shadow, eye-white pre-glaze."
+
+mint_cyan_wash:
+  family: pale_blue
+  lab_values: [82.0, -16.0, -6.0]
+  opacity_curve: [[0.0, 0.08], [0.5, 0.16], [1.0, 0.26]]
+  source_note: "Holbein Compose Blue dilute (PB15+PG7 blend) catalog approx"
+  uncalibrated_v1: true
+  ci_pigment: PB15_PG7_blend
+  notes: "Cyan-leaning; background atmospheric; hair-cool with green undertone."
+
+periwinkle_blue:
+  family: pale_blue
+  lab_values: [70.0, 6.0, -32.0]
+  opacity_curve: [[0.0, 0.12], [0.5, 0.22], [1.0, 0.38]]
+  source_note: "Schmincke Ultramarine Light (PB29) dilute"
+  uncalibrated_v1: true
+  ci_pigment: PB29
+  notes: "Violet-shifted blue; hair-cool support with warm-cool interplay."
+
+phthalo_blue:
+  family: pale_blue
+  lab_values: [44.0, 0.0, -40.0]
+  opacity_curve: [[0.0, 0.28], [0.5, 0.52], [1.0, 0.76]]
+  source_note: "Holbein Phthalo Blue (PB15) full strength"
+  uncalibrated_v1: true
+  ci_pigment: PB15
+  notes: "Mid-build chroma blue; hair body color; deep cool shadow."
+
+# --------------------------------------------------------------------- #
+# GREEN FAMILY (rare in Emma but kept for taxonomy coverage)            #
+# --------------------------------------------------------------------- #
+
+pale_green_wash:
+  family: pale_green
+  lab_values: [82.0, -22.0, 18.0]
+  opacity_curve: [[0.0, 0.08], [0.5, 0.18], [1.0, 0.30]]
+  source_note: "Holbein Sap Green (PG36) at very high dilution"
+  uncalibrated_v1: true
+  ci_pigment: PG36
+  notes: "Background complementary contrast against warm face."
+
+# --------------------------------------------------------------------- #
+# NEUTRAL / EARTH FAMILY                                                #
+# --------------------------------------------------------------------- #
+
+warm_grey:
+  family: warm_grey
+  lab_values: [62.0, 4.0, 6.0]
+  opacity_curve: [[0.0, 0.16], [0.5, 0.32], [1.0, 0.54]]
+  source_note: "Holbein Ivory Black + Raw Sienna 70/30 blend dilute catalog approx"
+  uncalibrated_v1: true
+  ci_pigment: PBk7_PBr7_blend
+  notes: "Universal-safe value foundation; brow + eye_socket; jaw_neck shadow."
+
+burnt_umber:
+  family: warm_grey
+  lab_values: [32.0, 12.0, 16.0]
+  opacity_curve: [[0.0, 0.28], [0.5, 0.52], [1.0, 0.78]]
+  source_note: "Holbein Burnt Umber (PBr7) full catalog approx"
+  uncalibrated_v1: true
+  ci_pigment: PBr7
+  notes: "Dark warm earth; hair mid-build; brow finishing dark."
+
+ivory_black:
+  family: warm_grey
+  lab_values: [16.0, 0.0, 0.0]
+  opacity_curve: [[0.0, 0.32], [0.5, 0.60], [1.0, 0.92]]
+  source_note: "Holbein Ivory Black (PBk7) full strength"
+  uncalibrated_v1: true
+  ci_pigment: PBk7
+  notes: "Key/detail black for final outlines, pupil, hair darkest passes."
