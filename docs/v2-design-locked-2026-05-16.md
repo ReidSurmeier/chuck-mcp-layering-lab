@@ -46,7 +46,9 @@ Take an input image, produce a CNC-ready multi-impression mokuhanga plan that an
 
 **Backend:** Python MCP service on Linux server as systemd user unit (`chuck-mcp.service`).
 
-**LLM transport:** subprocess to `claude -p` headless (uses Anthropic Max $100/mo subscription, NOT API key). Set `--output-format json` and parse via Python validator with 3 retries on malformed output. Strict tool-use schema enforcement deferred to V2 (would require API migration). The MCP backend wraps `claude -p` invocations behind a `translate_intent_prompt()` Python function so V2 swap to API is one-file.
+**LLM transport:** subprocess to `claude -p` headless (uses Anthropic Max $100/mo subscription, NOT API key). Set `--output-format json` and parse via Python validator with 3 retries on malformed output. Strict tool-use schema enforcement deferred to V2 (would require API migration). The MCP backend wraps `claude -p` invocations behind a `translate_intent_prompt()` Python function so V2 swap to API is one-file. Verified flag set per `research/v3-construction/claude-p-transport/`: `--output-format json --json-schema <schema> --max-turns 3 --no-session-persistence --permission-mode dontAsk --disallowedTools "Bash,Edit,Write,WebFetch,WebSearch,Read,Glob,Grep"`. **Do NOT use `--bare`** — it breaks OAuth subscription (returns "Not logged in" in 67ms).
+
+**Spatial region assignment (REVISED 2026-05-16):** Opus 4.7 vision in the SAME `claude -p` call that translates intent — NOT a separate MediaPipe pipeline. Input: target image (base64) + SNIC cell graph overlay (cell IDs labeled) + Reid's text prompt. Output JSON includes per-region `cell_ids` lists for each named underlayer slot. Vocabulary anchors (19 canonical regions + ~55 synonyms) carried over from `research/v3-construction/mediapipe-face-spatial/region_vocabulary.py` as the LLM's target output schema, but the implementation is replaced by Opus vision. **MediaPipe pipeline parked as V2 escape hatch** — full working code (region_vocabulary, face_region_mapper, merge_regions_with_cells, Chuck Close σ=21 blur cascade fallback) shipped to `research/v3-construction/mediapipe-face-spatial/` in case Opus vision underperforms on production data. V1 ships without MediaPipe dependency. Reasoning: Opus 4.7 vision handles stylized art natively, eliminating the σ=21 blur cascade Chuck Close requires; cell-ID-grained precision is sufficient (we're not doing sub-pixel landmarks); LLM round-trip cost is already paid for intent translation; deterministic iteration achieved via cached cell assignments in `previous_plan.json`.
 
 **Preview surfaces:**
 - Top: target image vs current composite, side-by-side, big
@@ -70,7 +72,7 @@ Per reconstruction doc Stage 6, the 6 validators that gate sign-off:
 
 | Validator | Function | Definition |
 |---|---|---|
-| `plate_not_composite_score` | Penalize blocks that look like final image | `1.0 - (cosine_sim(block, final) + coverage_concentration) / 2`. Reject if > 0.6. |
+| `plate_not_composite_score` | Penalize blocks that look like final image | `1.0 - (cosine_sim(block, final) + composite_likeness) / 2`. HIGH score = good (jigsaw plate); LOW = bad (residual). **Reject if < 0.6**. Verified by cell-zone-renderer agent: real plates score 0.946-1.000, v13-style residuals score 0.133. |
 | `role_purity_score` | Each block has clear print role | Each block tagged with role; reject if cell-zones span > 2 role families per block |
 | `jigsaw_separation_score` | Zones on a block need brushable boundaries | Min separation between zones on one block ≥ 5mm physical |
 | `proof_progression_score` | Proof states add visible families over time | Each proof checkpoint adds ≥ N pixels of new significant color shift |

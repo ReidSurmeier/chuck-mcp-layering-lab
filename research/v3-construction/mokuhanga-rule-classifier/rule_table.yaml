@@ -1,0 +1,270 @@
+# chuck-mcp v3 — Canonical Underlayer Rule Table
+# ================================================
+#
+# Source-anchored mapping from FACE REGION → permissible underlayer PIGMENT FAMILIES.
+# Each rule documents the source (Salter / Shibata / Lyon / Vollmer / Sultan&Shiff /
+# Hokusai forensic) and a one-sentence printmaker justification.
+#
+# These are UNDERLAYER rules only — opacity 0.15..0.30, pass_index in {1..~20}.
+# Mid-builds and key-details (opacity > 0.3) are governed by a separate rule set.
+#
+# Schema for each region:
+#   region:
+#     description: <where on the face>
+#     priority_rank: <int — 1..N, 1 = highest priority underlayer in canonical order>
+#     allowed_families: <ordered list, most-preferred first>
+#     forbidden_families: <list — never use as underlayer here>
+#     rationale: <one-sentence why>
+#     source: <Salter|Shibata|Lyon|Vollmer|Sultan_Shiff|Hokusai|Reid_annotation>
+#     opacity_range: [min, max]
+#     coverage_min: <float — area fraction, must exceed this to count as underlayer>
+
+meta:
+  version: "1.0.0"
+  date: "2026-05-16"
+  agent: "MOKUHANGA-RULE-CLASSIFIER"
+  swarm: "swarm-1778978903817-bqgh16"
+  applies_to: ["close_emma_2002", "chuck_close_portraits", "front_facing_portraits"]
+  not_applicable: ["landscape", "abstract", "still_life"]  # rule table fails outside portrait domain
+
+# --- PIGMENT FAMILIES ---
+# Six families used in the rule table. Each maps to one or more CI pigment IDs in
+# Reid's physical pigment_library YAML (to be authored in week-3).
+pigment_families:
+  light_yellow:
+    role_in_portrait: "warm-skin-support, temple highlight, cheek pre-glaze"
+    typical_ci: [PY3, PY74, PY97]
+    transparency: "transparent"
+    tinting_strength: "low"
+    overprint_behavior: "amplifies subsequent warm hues; near-invisible alone but lifts everything above it"
+    historical_analog: "gamboge"
+
+  pale_pink:
+    role_in_portrait: "lip pre-lay, cheek warm-shift, neck/jaw heat"
+    typical_ci: [PR122_low, PR170_low]   # diluted quinacridone or naphthol
+    transparency: "transparent"
+    tinting_strength: "low"
+    overprint_behavior: "shifts overlying hues warmer; reads as 'blush' under skin"
+    historical_analog: "beni"
+
+  pale_orange:
+    role_in_portrait: "transition zone (forehead → hair), eyelid mid-tone, neck shadow warm-base"
+    typical_ci: [PO48, PR101_diluted]
+    transparency: "semi-transparent"
+    tinting_strength: "low"
+    overprint_behavior: "binds warm skin to warm hair; ground for red mass passes"
+    historical_analog: "diluted bengara"
+
+  pale_red:
+    role_in_portrait: "lip core, mouth-corner, lower-lip wash"
+    typical_ci: [PR112_low, PR188_low]
+    transparency: "semi-transparent"
+    tinting_strength: "medium"
+    overprint_behavior: "primary saturation source for lip; do not use outside lip/strong-warm regions as underlayer"
+    historical_analog: "naphthol red"
+
+  pale_blue:
+    role_in_portrait: "cool-side-of-face shadow (jawline, temple shadow), eye-white pre-glaze, background atmospheric"
+    typical_ci: [PB15_low]
+    transparency: "transparent"
+    tinting_strength: "high"
+    overprint_behavior: "cools overlying hues; reads as 'shadow' under skin; do NOT cover full face area"
+    historical_analog: "ai"
+
+  pale_green:
+    role_in_portrait: "background complementary contrast against warm skin; rare under-skin use"
+    typical_ci: [PG7_low, PG36_low]
+    transparency: "transparent"
+    tinting_strength: "high"
+    overprint_behavior: "pushes adjacent warm regions to read warmer (simultaneous contrast); background-only typically"
+    historical_analog: "diluted phthalo green"
+
+  warm_grey:
+    role_in_portrait: "neutral skin-tone foundation, eyebrow/eye-socket pre-shadow"
+    typical_ci: [PBk7_diluted_with_PR101]
+    transparency: "semi-transparent"
+    tinting_strength: "medium"
+    overprint_behavior: "kills chroma but preserves value; safe under any region; over-use makes print muddy"
+    historical_analog: "diluted sumi + bengara"
+
+# --- REGION RULES ---
+regions:
+
+  cheek:
+    description: "Round mid-face mass, warmest skin reading"
+    priority_rank: 1
+    allowed_families: [light_yellow, pale_pink, pale_orange]
+    forbidden_families: [pale_blue, pale_green, warm_grey]
+    rationale: "Cheek is the hottest pigment cluster on the face — Pace progressive proofs of Emma show light yellow plate covering full cheek mass first, pink overprinted to lift warmth before chroma reds land."
+    source: ["Sultan_Shiff_2003_p128", "Reid_annotation_2026-05-16"]
+    opacity_range: [0.18, 0.28]
+    coverage_min: 0.40   # cheek underlayer must cover ≥40% of cheek SNIC cells
+
+  temple:
+    description: "Side of forehead, above ear"
+    priority_rank: 5
+    allowed_families: [light_yellow, pale_pink]
+    forbidden_families: [pale_blue, pale_green]
+    rationale: "Temple is cheek-extension — same warm support, but lower coverage since temple receives less direct light than cheek."
+    source: ["Sultan_Shiff_2003_p128", "Reid_annotation_2026-05-16"]
+    opacity_range: [0.15, 0.22]
+    coverage_min: 0.30
+
+  forehead:
+    description: "Upper face, above brow"
+    priority_rank: 3
+    allowed_families: [light_yellow, pale_pink, pale_orange]
+    forbidden_families: [pale_blue, pale_green]
+    rationale: "Forehead is the highlight plane; light yellow warms it, pale orange in transition strip near hairline preps warm-to-cool boundary."
+    source: ["Salter_2002_ch7", "Sultan_Shiff_2003"]
+    opacity_range: [0.15, 0.25]
+    coverage_min: 0.35
+
+  nose:
+    description: "Central ridge + sides"
+    priority_rank: 4
+    allowed_families: [light_yellow, pale_pink, pale_orange]
+    forbidden_families: [pale_blue, pale_green]
+    rationale: "Nose carries highlight on bridge (warm) and shadow on sides (cool) — but as a foundational underlayer, treat as warm; cool sides come later as mid-tone passes."
+    source: ["Salter_2002_ch7"]
+    opacity_range: [0.15, 0.25]
+    coverage_min: 0.30
+
+  lip:
+    description: "Upper + lower lip vermilion"
+    priority_rank: 2
+    allowed_families: [pale_pink, pale_red, pale_orange]
+    forbidden_families: [pale_blue, pale_green, warm_grey, light_yellow]
+    rationale: "Lips are the print's strongest chroma island — must be pre-warmed with pink so saturated red doesn't read 'pasted on'. Light yellow is FORBIDDEN under lips (kills chroma)."
+    source: ["Sultan_Shiff_2003_p134", "Vollmer_2015_ch8", "Reid_annotation_2026-05-16"]
+    opacity_range: [0.20, 0.30]
+    coverage_min: 0.60   # high — lip area is small, coverage of THAT area should be near-total
+
+  chin:
+    description: "Lower jaw mass below lip"
+    priority_rank: 6
+    allowed_families: [light_yellow, pale_pink, pale_orange]
+    forbidden_families: [pale_blue, pale_green]
+    rationale: "Chin is cheek-cousin in warmth, often slightly cooler; warm underlayer keeps it part of face mass."
+    source: ["Salter_2002_ch7", "Sultan_Shiff_2003"]
+    opacity_range: [0.15, 0.25]
+    coverage_min: 0.30
+
+  jaw_neck:
+    description: "Jawline transitioning to neck (shadow side)"
+    priority_rank: 7
+    allowed_families: [warm_grey, pale_blue, pale_pink]
+    forbidden_families: [pale_green]
+    rationale: "Shadow side of face gets cool support OR warm-grey value-foundation. Pale blue here is principled (cool-under-shadow), per Sultan&Shiff catalog notes on Close's value structure."
+    source: ["Sultan_Shiff_2003_p140", "Vollmer_2015_ch8"]
+    opacity_range: [0.15, 0.22]
+    coverage_min: 0.30
+
+  eye_socket:
+    description: "Recessed area around eye (NOT pupil/iris)"
+    priority_rank: 8
+    allowed_families: [warm_grey, pale_pink, pale_orange]
+    forbidden_families: [pale_blue]   # blue here would conflict with iris later
+    rationale: "Socket needs value but not chroma; warm-grey or pale orange holds the eye recess open without competing with iris pass later."
+    source: ["Salter_2002_ch7"]
+    opacity_range: [0.15, 0.22]
+    coverage_min: 0.25
+
+  eye_white:
+    description: "Sclera (whites of eyes)"
+    priority_rank: 9
+    allowed_families: [pale_blue, pale_pink]
+    forbidden_families: [light_yellow, pale_orange, pale_red]
+    rationale: "Eye whites read 'cool' in portraits; pale blue underlay subtly cools the area so subsequent neutral overprint reads blue-shifted (lifelike). Warm pigments here read jaundiced."
+    source: ["Salter_2002_ch7", "Vollmer_2015_ch8"]
+    opacity_range: [0.10, 0.18]
+    coverage_min: 0.50
+
+  hair:
+    description: "Hair mass region"
+    priority_rank: 10
+    allowed_families: [pale_blue, pale_pink, warm_grey]
+    forbidden_families: [light_yellow, pale_green]
+    rationale: "Hair mass takes very dark final pulls; an underlayer is OPTIONAL but a cool pale-blue underlay shifts the final dark toward 'blue-black' (alive) rather than 'brown-black' (muddy). Reid's annotation shows pink under hair too (warm-cool play)."
+    source: ["Reid_annotation_2026-05-16", "Sultan_Shiff_2003_p138"]
+    opacity_range: [0.15, 0.25]
+    coverage_min: 0.30
+
+  brow:
+    description: "Eyebrow"
+    priority_rank: 11
+    allowed_families: [warm_grey, pale_orange]
+    forbidden_families: [pale_blue, pale_green, light_yellow]
+    rationale: "Eyebrow ends dark and warm-brown; warm-grey or pale orange underlay establishes value before final dark line."
+    source: ["Salter_2002_ch7"]
+    opacity_range: [0.15, 0.25]
+    coverage_min: 0.35
+
+  background:
+    description: "Behind the head — non-face region"
+    priority_rank: 12
+    allowed_families: [pale_blue, pale_green, pale_orange, light_yellow]
+    forbidden_families: []   # background is the most permissive region
+    rationale: "Background underlay drives simultaneous-contrast on the face: cool background (blue/green) makes warm skin pop; warm background (orange/yellow) makes face read cooler. Use the COMPLEMENT of dominant face-warmth as default."
+    source: ["Hokusai_Great_Wave_forensic", "Vollmer_2015_ch8", "Sultan_Shiff_2003_p140"]
+    opacity_range: [0.15, 0.30]
+    coverage_min: 0.50
+
+# --- GLOBAL RULES ---
+# Cross-cutting constraints that override per-region rules.
+global_rules:
+
+  total_underlayer_plates:
+    min: 4
+    max: 9
+    rationale: "Reid's annotation of Emma shows 9 plates; less than 4 wastes blocks; more than 9 dilutes pull budget. (Q1 locked: 3-7 regions per block face, ~5 underlayer plates leaves 22 blocks for chroma/detail.)"
+    source: ["v2-design-locked-2026-05-16_Q1"]
+
+  light_to_dark_strict:
+    description: "All underlayers must precede ALL mid-build and detail plates."
+    rationale: "Mechanical physics: dark over light reads; light over dark vanishes. Salter ch.5 + universal mokuhanga practice."
+    source: ["Salter_2002_ch5", "pigment-taxonomy-nori-chemistry research"]
+
+  first_pull_is_lightest_largest:
+    description: "Pass index 1 MUST have opacity < 0.20 AND coverage > 0.40."
+    rationale: "Reconstructed from web_pigment-taxonomy-nori-chemistry Recommendation 5: first pass conditions paper and establishes lightest value."
+    source: ["mokuhanga-methodology/NOTES.md_Recommendation_5"]
+
+  complementary_background:
+    description: "If face is dominantly warm (mean hue 0..60° or 330..360°), background underlayer SHOULD be cool family (pale_blue or pale_green). If face is dominantly cool, background should be warm."
+    rationale: "Simultaneous contrast — universal portrait painting principle, applied to mokuhanga by Close/Shibata per Pace catalog."
+    source: ["Sultan_Shiff_2003_p140", "Vollmer_2015_ch8"]
+
+  no_double_underlay_same_pigment_adjacent_region:
+    description: "If region R1 has underlayer pigment_family=F at coverage>50%, adjacent region R2 should NOT use same F as its underlayer (avoids flat underlay across face)."
+    rationale: "Variation is the underlayer's purpose; uniform underlay defeats it. Mike Lyon precision-of-mokuhanga essay."
+    source: ["Lyon_2018_essay"]
+
+  text_override_priority:
+    description: "LLM-parsed text directives ALWAYS override algorithmic choice when explicit. Algorithm marks region with provenance='algorithm'; override marks 'text:<phrase>'."
+    rationale: "Q27 hybrid lock — text wins."
+    source: ["v2-design-locked-2026-05-16_Q27"]
+
+# --- ROLE TAXONOMY (FROM HOKUSAI FORENSIC) ---
+# Hokusai's Great Wave teaches the canonical role-axis for underlayers:
+#   dark blue (Prussian + indigo) - key/outline   - last
+#   medium blue                    - mid-mass     - middle
+#   light blue                     - water-highlight + atmosphere - early
+#   pale pink                      - sky          - early
+#   beige                          - boat hulls   - early (light skin-tone analog)
+#   light grey                     - ships        - early
+#   dark grey                      - shadow       - middle/late
+# Mapping these roles to portrait domain:
+#   pale pink (sky)        → cheek/forehead pink underlay
+#   beige (boat skin)      → light yellow skin support
+#   light grey             → warm grey underlay for eye-socket/brow
+#   light blue (water)     → background pale blue
+#   medium blue            → hair mid-build
+#   dark blue              → final dark accents
+hokusai_role_axis:
+  - {role: "underlayer_warm",      hokusai_analog: "pale pink sky",       portrait_use: "cheek/forehead/lip pre-glaze"}
+  - {role: "underlayer_value",     hokusai_analog: "beige boats",         portrait_use: "skin value foundation (light yellow)"}
+  - {role: "underlayer_cool",      hokusai_analog: "light blue water",    portrait_use: "background, jaw shadow, eye white"}
+  - {role: "underlayer_neutral",   hokusai_analog: "light grey ships",    portrait_use: "warm grey on eye socket, brow"}
+  - {role: "mid_build_chroma",     hokusai_analog: "medium blue waves",   portrait_use: "saturation mass passes"}
+  - {role: "key_detail",           hokusai_analog: "dark blue + indigo",  portrait_use: "final outline, eye pupil, hair dark"}

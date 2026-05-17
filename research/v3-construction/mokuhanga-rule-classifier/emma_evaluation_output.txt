@@ -1,0 +1,67 @@
+EMMA EVALUATION — chuck-mcp v3 underlayer rule classifier
+Generated: 2026-05-16
+Test image: corpus/close_emma_2002/original.jpg (1658 x 2048)
+Annotation reference:
+  /srv/woodblock-share/chuck-mcp-iterations/references/
+      2026-05-16_user-annotated-emma-underlayer-methodology.png
+
+================================================================================
+PROPOSED PLATES (algorithm output, no LLM overrides)
+================================================================================
+pass  block  region        family          opacity     cov   cells  provenance
+------------------------------------------------------------------------------------------
+   1      1  cheek         light_yellow      0.230   1.000      30  algorithm
+   2      4  temple        pale_pink         0.185   1.000      30  algorithm
+   3      5  chin          pale_pink         0.200   1.000      30  algorithm
+   4      3  forehead      pale_orange       0.200   1.000      30  algorithm
+   5      9  background    pale_orange       0.225   1.000      30  algorithm
+   6      7  eye_white     pale_blue         0.140   1.000      30  algorithm
+   7      8  hair          pale_blue         0.200   1.000      30  algorithm
+   8      6  jaw_neck      warm_grey         0.185   1.000      30  algorithm
+   9      2  lip           pale_red          0.250   1.000      30  algorithm
+
+================================================================================
+SCORING vs Reid's annotation (9 plates)
+================================================================================
+region        annotated       predicted       verdict   score
+--------------------------------------------------------------------------------
+cheek         light_yellow    light_yellow    EXACT     1.00
+forehead      light_yellow    pale_orange     NEAR      0.50
+lip           pale_red        pale_red        EXACT     1.00
+chin          pale_pink       pale_pink       EXACT     1.00
+temple        pale_pink       pale_pink       EXACT     1.00
+hair          pale_blue       pale_blue       EXACT     1.00
+eye_white     pale_blue       pale_blue       EXACT     1.00
+background    pale_orange     pale_orange     EXACT     1.00
+jaw_neck      warm_grey       warm_grey       EXACT     1.00
+--------------------------------------------------------------------------------
+EXACT=8, NEAR=1, MISS=0
+Weighted score: 8.50 / 9
+Match rate: 94.4%
+PASS — 8 of 9 underlayer regions match annotated reference
+
+================================================================================
+ROBUSTNESS — three non-Emma test portraits
+================================================================================
+Case 1: Pale-skin Caucasian (cool background)        91.7% (5 EXACT, 1 NEAR)
+Case 2: Dark-skin (warm background)                  100.0% (5 EXACT, 0 NEAR)
+Case 3: Cool-toned face + warm background (adv.)     87.5% (3 EXACT, 1 NEAR)
+
+================================================================================
+EXPLANATION OF THE SINGLE NEAR MATCH (forehead)
+================================================================================
+Reid's annotation has light_yellow on BOTH cheek and forehead (a single unified
+"warm value foundation" across the whole face front-plane). The proposer's
+no-double-underlay-adjacent rule forces forehead to a different family
+(pale_orange) once cheek has claimed light_yellow.
+
+Two ways to resolve:
+  1. Relax the no-double-underlay rule for the cheek↔forehead pair (they're
+     part of the same value-foundation in Pace practice).
+  2. Treat cheek+forehead as a single macro-region and emit ONE plate covering
+     both with light_yellow. This matches Shibata's "first plate" being a unified
+     warm wash across the upper face mass.
+
+V1 keeps the per-region model (simpler solver). V2 could introduce macro-regions.
+Either way, the NEAR match preserves the warm axis and the validators
+(role_purity_score, plate_not_composite_score) still pass.

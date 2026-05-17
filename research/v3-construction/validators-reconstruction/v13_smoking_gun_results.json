@@ -1,0 +1,184 @@
+[
+  {
+    "block_id": 1,
+    "badness": 0.3998654759760023,
+    "cos_sim": 0.7997309519520046,
+    "area_frac": 0.0,
+    "passes": true
+  },
+  {
+    "block_id": 2,
+    "badness": 0.4045634288048337,
+    "cos_sim": 0.8091268576096674,
+    "area_frac": 0.0,
+    "passes": true
+  },
+  {
+    "block_id": 3,
+    "badness": 0.4046200703836101,
+    "cos_sim": 0.8092401407672202,
+    "area_frac": 0.0,
+    "passes": true
+  },
+  {
+    "block_id": 4,
+    "badness": 0.4026676064798121,
+    "cos_sim": 0.8053352129596242,
+    "area_frac": 0.0,
+    "passes": true
+  },
+  {
+    "block_id": 5,
+    "badness": 0.40874626179941037,
+    "cos_sim": 0.8174925235988207,
+    "area_frac": 7.584951526951045e-05,
+    "passes": true
+  },
+  {
+    "block_id": 6,
+    "badness": 0.420187978785024,
+    "cos_sim": 0.840375957570048,
+    "area_frac": 0.015245752409100533,
+    "passes": true
+  },
+  {
+    "block_id": 7,
+    "badness": 0.41032024295211156,
+    "cos_sim": 0.8206404859042231,
+    "area_frac": 0.0,
+    "passes": true
+  },
+  {
+    "block_id": 8,
+    "badness": 0.41253361341405664,
+    "cos_sim": 0.8250672268281133,
+    "area_frac": 0.0,
+    "passes": true
+  },
+  {
+    "block_id": 9,
+    "badness": 0.40967443829399774,
+    "cos_sim": 0.8193488765879955,
+    "area_frac": 0.0,
+    "passes": true
+  },
+  {
+    "block_id": 10,
+    "badness": 0.41968547020181957,
+    "cos_sim": 0.8393709404036391,
+    "area_frac": 0.044599514454603195,
+    "passes": true
+  },
+  {
+    "block_id": 11,
+    "badness": 0.4341534778123254,
+    "cos_sim": 0.8683069556246508,
+    "area_frac": 0.017217839136719704,
+    "passes": true
+  },
+  {
+    "block_id": 12,
+    "badness": 0.4143313170197998,
+    "cos_sim": 0.8286626340395996,
+    "area_frac": 0.0,
+    "passes": true
+  },
+  {
+    "block_id": 13,
+    "badness": 0.4360180816678979,
+    "cos_sim": 0.8720361633357958,
+    "area_frac": 0.0647754818201065,
+    "passes": true
+  },
+  {
+    "block_id": 14,
+    "badness": 0.4559783374346151,
+    "cos_sim": 0.9119566748692302,
+    "area_frac": 0.08062803745269775,
+    "passes": true
+  },
+  {
+    "block_id": 15,
+    "badness": 0.40994508510332267,
+    "cos_sim": 0.8198901702066453,
+    "area_frac": 0.0,
+    "passes": true
+  },
+  {
+    "block_id": 16,
+    "badness": 0.4116495164224325,
+    "cos_sim": 0.823299032844865,
+    "area_frac": 0.0,
+    "passes": true
+  },
+  {
+    "block_id": 17,
+    "badness": 0.42015960675505026,
+    "cos_sim": 0.8403192135101005,
+    "area_frac": 0.025333737954497337,
+    "passes": true
+  },
+  {
+    "block_id": 18,
+    "badness": 0.414725436385971,
+    "cos_sim": 0.829450872771942,
+    "area_frac": 0.0,
+    "passes": true
+  },
+  {
+    "block_id": 19,
+    "badness": 0.4503568942820653,
+    "cos_sim": 0.9007137885641306,
+    "area_frac": 0.09625303745269775,
+    "passes": true
+  },
+  {
+    "block_id": 20,
+    "badness": 0.44729189596930297,
+    "cos_sim": 0.8945837919386059,
+    "area_frac": 0.10793385654687881,
+    "passes": true
+  },
+  {
+    "block_id": 21,
+    "badness": 0.4532444159659531,
+    "cos_sim": 0.9064888319319062,
+    "area_frac": 0.11976638436317444,
+    "passes": true
+  },
+  {
+    "block_id": 22,
+    "badness": 0.43938366866613554,
+    "cos_sim": 0.8737916091769312,
+    "area_frac": 0.1512439250946045,
+    "passes": true
+  },
+  {
+    "block_id": 23,
+    "badness": 0.4504945115535499,
+    "cos_sim": 0.9009890231070998,
+    "area_frac": 0.12947511672973633,
+    "passes": true
+  },
+  {
+    "block_id": 24,
+    "badness": 0.999404856484732,
+    "cos_sim": 0.998809712969464,
+    "area_frac": 0.5563561916351318,
+    "passes": false
+  },
+  {
+    "block_id": 25,
+    "badness": 0.9996980822028899,
+    "cos_sim": 0.9993961644057798,
+    "area_frac": 0.6011074185371399,
+    "passes": false
+  },
+  {
+    "block_id": 26,
+    "badness": 0.9996866450731303,
+    "cos_sim": 0.9993732901462606,
+    "area_frac": 0.6232554316520691,
+    "passes": false
+  }
+]
