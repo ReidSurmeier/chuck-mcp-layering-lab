@@ -232,7 +232,7 @@ class Plate:
         )
 
     def _to_production_dict(self) -> dict[str, Any]:
-        return {
+        d: dict[str, Any] = {
             "block_id": int(self.block_id),
             "cell_zone_ids": [int(x) for x in self.cell_zone_ids],
             "role": self.role,
@@ -246,6 +246,12 @@ class Plate:
             "rationale": self.rationale,
             "provenance": self.provenance,
         }
+        # v5 mediapipe spatial constraint: emit when present so production
+        # plan JSON carries which face regions the plate is bounded to.
+        constraint = getattr(self, "face_region_constraint", None)
+        if constraint:
+            d["face_region_constraint"] = [str(x) for x in constraint]
+        return d
 
     def _to_solved_dict(self, include_mask: bool = False) -> dict[str, Any]:
         d: dict[str, Any] = {
