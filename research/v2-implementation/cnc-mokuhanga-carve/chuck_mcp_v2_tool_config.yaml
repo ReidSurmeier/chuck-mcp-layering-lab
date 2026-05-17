@@ -1,0 +1,259 @@
+# chuck-mcp v2 — CNC tool configuration (canonical reference)
+# This file defines the V1 tool set for carving 27 maple plywood blocks
+# for a B4 (257×364mm) mokuhanga edition of 10.
+#
+# Coordinate units: mm throughout
+# CNC target: ShopBot PRSalpha at RISD printmaking shop
+# Material: maple plywood, 12mm nominal thickness
+# Source: research/v2-implementation/cnc-mokuhanga-carve/NOTES.md verdict
+#
+# Schema version: 1.0
+# Generated: 2026-05-16
+
+schema_version: "1.0"
+project: "chuck-mcp v2"
+target_machine: "ShopBot PRSalpha"
+target_material: "maple plywood (12mm)"
+
+# ============================================================================
+# PAPER + IMAGE GEOMETRY
+# ============================================================================
+paper:
+  size: "B4"
+  width_mm: 257.0
+  height_mm: 364.0
+  trim_tolerance_mm: 2.0
+
+image_area:
+  width_mm: 227.0      # paper.width - left margin - right margin
+  height_mm: 329.0     # paper.height - top margin - bottom margin
+  margins:
+    top_mm: 15.0
+    right_mm: 15.0
+    bottom_mm: 20.0    # extra space for kento marks
+    left_mm: 15.0
+
+# ============================================================================
+# BLOCK STOCK
+# ============================================================================
+block:
+  count: 27
+  outer_width_mm: 280.0
+  outer_height_mm: 400.0
+  thickness_mm: 12.0
+  dimensional_tolerance_mm: 0.2
+  material: "hard maple plywood"
+  ply_count_min: 5
+  face_veneer_thickness_mm: 0.6
+  glue_type: "Type II water-resistant"
+  grade: "A1 or A2 face"
+
+# ============================================================================
+# JIG (soto-kento, recommended approach)
+# ============================================================================
+jig:
+  outer_width_mm: 350.0
+  outer_height_mm: 470.0
+  thickness_mm: 12.0
+  material: "hard maple plywood (same as blocks for thermal stability)"
+  block_pocket:
+    width_mm: 280.15     # block_outer_width + 0.075mm clearance each side
+    height_mm: 400.15
+    depth_mm: 12.0       # block top sits flush with jig top
+  hold_down_screws:
+    count: 4
+    diameter_mm: 5.0     # #10 screws
+    position: "corners"
+
+# ============================================================================
+# KENTO MARKS (on jig, NOT on individual blocks)
+# ============================================================================
+kento:
+  type: "soto"           # soto-kento = on jig, uchi-kento = on each block
+  depth_mm: 1.5
+  bevel_angle_degrees: 25       # 15-30° range, baren-clearance side
+  paper_engaging_wall_angle: 0  # vertical
+
+  kagi:                  # L-shaped corner mark
+    position: "bottom-right of paper position"
+    leg_length_mm: 20.0
+    leg_width_mm: 8.0
+
+  hikitsuke:             # straight bar mark
+    position: "bottom edge, 2/3 from kagi"
+    length_mm: 25.0
+    width_mm: 8.0
+    distance_from_kagi_mm: 171.0   # 2/3 × paper width 257mm
+
+# ============================================================================
+# END-MILL SET (V1)
+# ============================================================================
+tools:
+  - id: "rough_quarter_compression"
+    description: "1/4 inch compression spiral, 2-flute, solid carbide"
+    diameter_mm: 6.35
+    diameter_inches: 0.25
+    flutes: 2
+    type: "compression_spiral"
+    cut_feed_mm_s: 50.8           # 120 IPM
+    plunge_feed_mm_s: 12.7        # 30 IPM
+    jog_feed_mm_s: 152.4          # 360 IPM
+    spindle_rpm: 18000
+    doc_per_pass_mm: 3.0
+    stepover_fraction: 0.6
+    role: "rough_bulk_outside_relief"
+    shopbot_tool_number: 1
+
+  - id: "bulk_eighth_up"
+    description: "1/8 inch up-spiral, 2-flute, solid carbide"
+    diameter_mm: 3.175
+    diameter_inches: 0.125
+    flutes: 2
+    type: "up_spiral"
+    cut_feed_mm_s: 42.3           # 100 IPM
+    plunge_feed_mm_s: 8.5         # 20 IPM
+    jog_feed_mm_s: 152.4
+    spindle_rpm: 18000
+    doc_per_pass_mm: 1.25
+    stepover_fraction: 0.4
+    role: "bulk_carve_relief"
+    shopbot_tool_number: 2
+
+  - id: "detail_sixteenth_up"
+    description: "1/16 inch up-spiral, 2-flute, solid carbide"
+    diameter_mm: 1.587
+    diameter_inches: 0.0625
+    flutes: 2
+    type: "up_spiral"
+    cut_feed_mm_s: 29.6           # 70 IPM
+    plunge_feed_mm_s: 6.4         # 15 IPM
+    jog_feed_mm_s: 152.4
+    spindle_rpm: 18000
+    doc_per_pass_mm: 0.65
+    stepover_fraction: 0.2
+    role: "finish_boundary_and_detail"
+    shopbot_tool_number: 3
+    sets_minimum_feature_size: true
+
+  - id: "vbit_30_deg"
+    description: "30 degree V-bit, solid carbide"
+    diameter_mm: 6.35          # shank/widest
+    tip_diameter_mm: 0.0
+    angle_degrees: 30
+    type: "v_bit"
+    cut_feed_mm_s: 21.2        # 50 IPM
+    plunge_feed_mm_s: 6.4
+    jog_feed_mm_s: 152.4
+    spindle_rpm: 20000
+    role: "inside_corners_and_kento_bevel"
+    shopbot_tool_number: 4
+
+# ============================================================================
+# CARVE GEOMETRY
+# ============================================================================
+carve:
+  depth_mm: 2.5              # relief depth below block surface
+  safe_z_mm: 6.0             # rapid-travel clearance
+
+  tool_compensation:
+    relief_outer_boundary_offset_mm: 0.80    # +1/16" radius, OUTWARD
+    relief_internal_hole_offset_mm: -0.80    # -1/16" radius, INWARD
+    block_edge_offset_mm: -0.075             # for jig press-fit
+    kento_paper_wall_offset_mm: 0.0          # direct contact
+
+  minimum_feature_size_mm: 1.6   # limited by 1/16" bit
+  minimum_internal_radius_mm: 0.8
+
+# ============================================================================
+# SVG EXPORT
+# ============================================================================
+svg_export:
+  mirror_flip: true            # block prints mirror; flip before CAM
+  units: "mm"
+  dpi_assumption: 300
+
+  layer_colors:
+    relief: "#000000"          # black — pocket toolpath target
+    boundary: "#FF0000"        # red — profile toolpath target
+    kento: "#0000FF"           # blue — kento marks (jig only)
+    block_edge: "#00FF00"      # green — jig pocket / block outer
+    vcarve_detail: "#FFFF00"   # yellow — V-bit detail (optional)
+
+  metadata_namespace: "https://chuck-mcp/v2"
+  embed_block_id: true
+  embed_grain_direction: true
+
+# ============================================================================
+# CAM PIPELINE
+# ============================================================================
+cam:
+  primary: "Vectric VCarve Pro"
+  primary_post_processor: "ShopBot TC (mm) (*.sbp)"
+  fallback: "Inkscape gcodetools + custom .gcode → .sbp converter"
+  output_format: "sbp"           # OpenSBP, NOT G-code
+
+# ============================================================================
+# OPERATING ENVIRONMENT
+# ============================================================================
+environment:
+  studio_temp_f: 72              # 70-75 acceptable, ±2
+  studio_humidity_pct: 50        # 45-55% RH, ±3
+  rationale: "Paper expansion at >55% RH causes registration drift across edition"
+
+# ============================================================================
+# PASS STRATEGY (per block)
+# ============================================================================
+passes:
+  - name: "rough_outside"
+    tool: "rough_quarter_compression"
+    strategy: "pocket"
+    region: "outside_relief_boundary"
+    stock_to_leave_mm: 0.5
+    notes: "Clear bulk; speed over precision"
+
+  - name: "bulk_inside"
+    tool: "bulk_eighth_up"
+    strategy: "pocket"
+    region: "relief_carve_area"
+    stock_to_leave_mm: 0.2
+    notes: "Carve relief shape close to final"
+
+  - name: "finish_boundary"
+    tool: "detail_sixteenth_up"
+    strategy: "profile"
+    region: "relief_outline"
+    stock_to_leave_mm: 0.0
+    pass_count: 2                # 1 nominal + 1 spring pass
+    cut_direction: "climb"
+    notes: "Defines final feature size"
+
+  - name: "inside_corners_optional"
+    tool: "vbit_30_deg"
+    strategy: "vcarve_at_marked_corners"
+    region: "tagged_sharp_corners_only"
+    notes: "Skip unless SVG marks corners as sharp"
+
+# ============================================================================
+# VALIDATION CHECKLIST (machine-readable)
+# ============================================================================
+validation:
+  pre_carve:
+    - check: "svg_horizontally_flipped"
+      expected: true
+    - check: "all_features_above_min_size"
+      threshold_mm: 1.6
+    - check: "block_id_label_present"
+      expected: true
+    - check: "metadata_present"
+      required_fields: ["block-id", "flip-applied", "carve-depth-mm"]
+  pre_jig_carve:
+    - check: "kento_marks_present"
+      expected: true
+    - check: "block_pocket_dimensions"
+      expected: "280.15 x 400.15 mm"
+  per_block:
+    - check: "stock_thickness_uniform"
+      tolerance_mm: 0.3
+    - check: "stock_squareness"
+      tolerance_mm: 0.3
+    - check: "no_surface_defects_in_image_area"
