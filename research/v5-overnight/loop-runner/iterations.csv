@@ -2,3 +2,4 @@ iter_n,wall_s,plate_count,plates_pass_pnc,dE_mean,dE_p95,validators_passed,under
 01,120,20,0,20.621,49.0002,2,33.95,/home/reidsurmeier/cnc-carving-jobs/emma-overnight-iter-01/sheet_iter_01.png,profile=thorough m_prior=26 salvaged=set-u-fix
 02,24,20,0,20.621,49.0002,2,33.95,/home/reidsurmeier/cnc-carving-jobs/emma-overnight-iter-02/sheet_iter_02.png,profile=thorough m_prior=26 plan_rc=0 sheet_rc=0 valid_rc=0
 03,24,20,0,20.621,49.0002,2,33.95,/home/reidsurmeier/cnc-carving-jobs/emma-overnight-iter-03/sheet_iter_03.png,profile=thorough m_prior=28 plan_rc=0 sheet_rc=0 valid_rc=0
+04,12,20,0,21.1241,47.8882,2,34.05,/home/reidsurmeier/cnc-carving-jobs/emma-overnight-iter-04/sheet_iter_04.png,profile=fast m_prior=26 plan_rc=0 sheet_rc=0 valid_rc=0
