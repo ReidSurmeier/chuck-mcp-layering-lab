@@ -32,12 +32,19 @@ fi
 echo "python: $(which python) -- $(python --version 2>&1)"
 
 # solve profile -> outer/inner iter counts
+# Also encode plate_count + cells in profile for real exploration of the loss landscape.
 case "$PROFILE" in
-  fast)     OUTER=1; INNER=10 ;;
-  thorough) OUTER=3; INNER=25 ;;
-  *)        OUTER=2; INNER=15 ;;
+  fast)            OUTER=1; INNER=10; PLATE_COUNT=20; CELLS=96 ;;
+  thorough)        OUTER=3; INNER=25; PLATE_COUNT=20; CELLS=96 ;;
+  finer-cells)     OUTER=3; INNER=25; PLATE_COUNT=20; CELLS=192 ;;
+  more-plates)     OUTER=3; INNER=25; PLATE_COUNT=28; CELLS=96 ;;
+  finer-more)      OUTER=3; INNER=25; PLATE_COUNT=28; CELLS=192 ;;
+  deeper-inner)    OUTER=3; INNER=50; PLATE_COUNT=20; CELLS=96 ;;
+  bigger-canvas)   OUTER=3; INNER=25; PLATE_COUNT=20; CELLS=96 ;;  # uses --size override below
+  *)               OUTER=2; INNER=15; PLATE_COUNT=20; CELLS=96 ;;
 esac
-PLATE_COUNT=20  # held constant per design; can be tuned later
+SIZE=256
+[ "$PROFILE" = "bigger-canvas" ] && SIZE=384
 
 T0=$(date +%s)
 
@@ -50,8 +57,8 @@ python -m chuck_mcp_v2.plan_emma "$INPUT" \
   --max-outer-iters "$OUTER" \
   --max-inner-iters "$INNER" \
   --plate-count "$PLATE_COUNT" \
-  --size 256 \
-  --cells 96
+  --size "$SIZE" \
+  --cells "$CELLS"
 PLAN_RC=$?
 echo "plan_emma rc=$PLAN_RC"
 
