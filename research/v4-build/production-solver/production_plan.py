@@ -22,17 +22,10 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field, asdict
-from typing import Literal, Optional
+from typing import Optional
 
-
-Role = Literal["underlayer_light", "local_chroma", "regional_mass", "key_detail"]
-
-ROLES: tuple[Role, ...] = (
-    "underlayer_light",
-    "local_chroma",
-    "regional_mass",
-    "key_detail",
-)
+from chuck_mcp_v2.types import Plate as PlateSpec
+from chuck_mcp_v2.types import ROLES, Role
 
 
 # ----------------------------------------------------------------------------
@@ -60,50 +53,6 @@ class PullSpec:
     Used for graduated opacity within a block (e.g. mid-build over shadow
     side only) WITHOUT inventing a new physical plate.
     """
-
-    def to_dict(self) -> dict:
-        d = asdict(self)
-        return d
-
-
-# ----------------------------------------------------------------------------
-# PlateSpec — one physical block (1..N adaptive).
-# ----------------------------------------------------------------------------
-@dataclass
-class PlateSpec:
-    """One physical CNC-carved block.
-
-    Composed of:
-        - cell_zone_ids: which SNIC cells are carved INTO this block
-        - pulls: the 1-5 PullSpec records that overprint this block
-        - role: a SINGLE printmaker role family (role_purity gate)
-        - pigment_family: hint for the JAX solver's starting point
-    """
-
-    block_id: int                      # 1..N
-    cell_zone_ids: list[int]           # SNIC cells inked on this block
-    role: Role
-    pigment_family: str                # hint; JAX picks the actual pigment_id per pull
-    pulls: list[PullSpec] = field(default_factory=list)
-    region_label: Optional[str] = None  # cheek/hair/background/... when known
-    mirror: bool = True                 # always True for SVG output
-    rationale: str = ""                 # one-line provenance from proposer
-    provenance: str = "algorithm"       # algorithm | text:<phrase>
-
-    def add_pull(self, pull: PullSpec) -> None:
-        if pull.block_id != self.block_id:
-            raise ValueError(
-                f"PullSpec.block_id={pull.block_id} doesn't match plate.block_id={self.block_id}"
-            )
-        if pull.role != self.role:
-            raise ValueError(
-                f"PullSpec.role={pull.role!r} doesn't match plate.role={self.role!r}"
-            )
-        self.pulls.append(pull)
-
-    @property
-    def pull_count(self) -> int:
-        return len(self.pulls)
 
     def to_dict(self) -> dict:
         d = asdict(self)

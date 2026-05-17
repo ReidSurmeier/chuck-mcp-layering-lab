@@ -220,6 +220,39 @@ Default artifact roots:
 /srv/woodblock-share/chuck-carousel-slides/
 ```
 
+## V4 Integration Smoke
+
+The v4 research build now has a direct seam-test CLI that connects the
+production-solver plan to the hybrid optimizer and the shared plate objective:
+
+```bash
+JAX_PLATFORMS=cuda \
+XLA_PYTHON_CLIENT_PREALLOCATE=false \
+PYTHONPATH=. \
+.venv-v23/bin/python -m chuck_mcp_v2.plan_emma \
+  /srv/woodblock-share/input-images/close_emma_2002_2048.jpg \
+  --size 96 \
+  --cells 64 \
+  --plate-count 24 \
+  --max-outer-iters 1 \
+  --max-inner-iters 5 \
+  --output /srv/woodblock-share/chuck-mcp-iterations/current-review/2026-05-17_v4-seam-fix-real-emma/hybrid_result.json \
+  --plan-output /srv/woodblock-share/chuck-mcp-iterations/current-review/2026-05-17_v4-seam-fix-real-emma/production_plan.json \
+  --artifacts-dir /srv/woodblock-share/chuck-mcp-iterations/current-review/2026-05-17_v4-seam-fix-real-emma/artifacts
+```
+
+Latest v4 seam output:
+
+```text
+/srv/woodblock-share/chuck-mcp-iterations/current-review/2026-05-17_v4-seam-fix-real-emma/
+```
+
+That run proves the integrated path executes on CUDA and writes proof/plate PNGs.
+It is not a quality solve yet: it produced 21 active plates, improved Stage 3
+loss from `34.460` to `31.487`, passed 3 of 5 gate validators, and reported
+`delta_e_mean=21.596`. The acceptance sheet is useful for visual debugging, but
+the current grid-cell proposal is still far from the Chuck Close reference.
+
 Latest reviewed carousel:
 
 ```text

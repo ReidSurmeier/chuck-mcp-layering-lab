@@ -16,16 +16,18 @@ import sys
 from pathlib import Path
 
 # Default tests to CPU JAX — GPU init dominates wall-time for small synth plans.
-# To run on GPU, set HYBRID_OPTIMIZER_JAX_PLATFORM=gpu before pytest.
-os.environ.setdefault(
-    "JAX_PLATFORMS",
-    os.environ.get("HYBRID_OPTIMIZER_JAX_PLATFORM", "cpu"),
-)
-# Hide CUDA libs in test mode unless explicitly requested
-if os.environ.get("HYBRID_OPTIMIZER_JAX_PLATFORM", "cpu") == "cpu":
+# To run on an NVIDIA GPU, set HYBRID_OPTIMIZER_JAX_PLATFORM=gpu or cuda.
+_requested_platform = os.environ.get("HYBRID_OPTIMIZER_JAX_PLATFORM", "cpu")
+_jax_platform = "cuda" if _requested_platform == "gpu" else _requested_platform
+os.environ.setdefault("JAX_PLATFORMS", _jax_platform)
+# Hide CUDA libs in test mode unless explicitly requested.
+if _jax_platform == "cpu":
     os.environ.setdefault("CUDA_VISIBLE_DEVICES", "")
 
 _HERE = Path(__file__).resolve().parent
+_PROJECT_ROOT = _HERE.parents[2]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
 
 
 def _install_alias_package() -> None:

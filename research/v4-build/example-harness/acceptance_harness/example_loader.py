@@ -18,6 +18,7 @@ single thumbnails on demand.
 
 from __future__ import annotations
 
+import unicodedata
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
@@ -37,6 +38,22 @@ HOKUSAI_CELL_COUNT = HOKUSAI_GRID_COLS * HOKUSAI_GRID_ROWS  # 8
 # centralized place so the contact sheet stays visually consistent.
 DEFAULT_TILE_W = 256
 DEFAULT_TILE_H = 256
+
+
+def _normalized_filename(name: str) -> str:
+    return " ".join(unicodedata.normalize("NFKC", name).split())
+
+
+def _resolve_example_file(examples_dir: Path, filename: str) -> Path:
+    exact = examples_dir / filename
+    if exact.exists():
+        return exact
+    target = _normalized_filename(filename)
+    if examples_dir.exists():
+        for path in examples_dir.iterdir():
+            if path.is_file() and _normalized_filename(path.name) == target:
+                return path
+    return exact
 
 
 def _make_placeholder_tile(
@@ -80,7 +97,7 @@ def load_woodblock_print_process(
     is missing, returns 8 placeholder tiles so the harness can still produce a
     readable contact sheet for tests.
     """
-    src = examples_dir / HOKUSAI_FILENAME
+    src = _resolve_example_file(examples_dir, HOKUSAI_FILENAME)
     if not src.exists():
         return [
             _make_placeholder_tile(

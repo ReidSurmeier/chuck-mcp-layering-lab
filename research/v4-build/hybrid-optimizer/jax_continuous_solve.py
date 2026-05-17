@@ -30,10 +30,13 @@ jaxopt unavailable (CI environments without GPU).
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Tuple
+import sys
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 import numpy as np
+from chuck_mcp_v2.types import Plate as FrozenPlate
 
 try:
     import jax
@@ -52,36 +55,18 @@ try:
 except Exception:  # pragma: no cover - environment without jaxopt
     _HAS_JAXOPT = False
 
+try:
+    _PLATE_OBJECTIVE_DIR = Path(__file__).resolve().parents[1] / "plate-objective"
+    if str(_PLATE_OBJECTIVE_DIR) not in sys.path:
+        sys.path.insert(0, str(_PLATE_OBJECTIVE_DIR))
+    from objective_terms import Plate as ObjectivePlate
+    from objective_terms import composite_loss as plate_objective_composite_loss
 
-# ---------- Public dataclasses ----------------------------------------
-
-
-@dataclass
-class FrozenPlate:
-    """One plate after Stage 2. The MASK is frozen. The CONTINUOUS values
-    are what JAX solves for.
-
-    Attributes:
-        block_id: plate id (matches CandidatePlate.plate_id).
-        cell_zone_ids: cells on this plate (FROZEN).
-        inked_mask: H x W binary 0/1 numpy array (FROZEN).
-        role: role family (constant).
-        pigment_choices: candidate pigments for this plate's blend
-            (list of (pigment_id, lab_rgb_color)). The solver returns
-            a softmax-weighted convex combination.
-        pass_index: which pull this plate contributes to (constant).
-        initial_opacity: warm-start in [0, 1].
-        initial_dilution: warm-start in [0, 1].
-    """
-
-    block_id: int
-    cell_zone_ids: List[int]
-    inked_mask: np.ndarray
-    role: str
-    pigment_choices: List[Tuple[str, Tuple[float, float, float]]]
-    pass_index: int = 0
-    initial_opacity: float = 0.5
-    initial_dilution: float = 0.3
+    _HAS_PLATE_OBJECTIVE = True
+except Exception:  # pragma: no cover - isolated Stage 3 or no JAX installed
+    ObjectivePlate = None  # type: ignore[assignment]
+    plate_objective_composite_loss = None  # type: ignore[assignment]
+    _HAS_PLATE_OBJECTIVE = False
 
 
 @dataclass
@@ -254,10 +239,8 @@ def _build_loss_fn(
     pigment_valid_mask_j = jnp.asarray(pigment_valid_mask)
     # Pull order = sorted by (pass_index, block_id) — stable, deterministic.
     order_keys = [(p.pass_index, p.block_id) for p in plates]
-    pull_order = jnp.asarray(
-        sorted(range(len(plates)), key=lambda i: order_keys[i]),
-        dtype=jnp.int32,
-    )
+    pull_order_list = sorted(range(len(plates)), key=lambda i: order_keys[i])
+    pull_order = jnp.asarray(pull_order_list, dtype=jnp.int32)
 
     def loss_fn(params):
         opacities = jax.nn.sigmoid(params[:, 0])
@@ -278,6 +261,26 @@ def _build_loss_fn(
             return substrate, None
 
         final_substrate, _ = jax.lax.scan(body, substrate_lab, pull_order)
+        if _HAS_PLATE_OBJECTIVE:
+            objective_plates = [
+                ObjectivePlate(
+                    block_id=plates[i].block_id,
+                    mask=masks[i],
+                    pigment_lab=plate_lab[i],
+                    opacity=opacities[i],
+                    role=plates[i].role,
+                    cell_zone_ids=tuple(plates[i].cell_zone_ids),
+                    pass_index=plates[i].pass_index,
+                )
+                for i in range(len(plates))
+            ]
+            return plate_objective_composite_loss(
+                objective_plates,
+                target_lab,
+                rendered_final=final_substrate,
+                plate_order=pull_order_list,
+            )
+
         de = _delta_e_76(final_substrate, target_lab)
         return jnp.mean(de)
 

@@ -17,15 +17,13 @@ private renderer detail (per Q26).
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Literal
+from dataclasses import dataclass
 
 import numpy as np
 from numpy.typing import NDArray
 from shapely.geometry import Polygon
 
-
-Role = Literal["underlayer_light", "local_chroma", "regional_mass", "key_detail"]
+from chuck_mcp_v2.types import Plate, Role
 
 
 @dataclass
@@ -42,20 +40,6 @@ class CellZone:
         if self.centroid_xy is None:
             c = self.polygon.centroid
             self.centroid_xy = (float(c.x), float(c.y))
-
-
-@dataclass
-class Plate:
-    """A physical block carved with a number of cell-zones inked one color."""
-
-    block_id: int                          # 1..27
-    cell_zones: list[CellZone]
-    pigment_color: tuple[float, float, float]   # 0..1 RGB the plate is inked with
-    pigment_name: str
-    opacity: float                         # 0..1 ink load for K-M overprint
-    role: Role
-    pass_index: int = 1                    # 1..5 — which pull of this block
-    mirror: bool = True                    # always True for SVG output
 
 
 @dataclass

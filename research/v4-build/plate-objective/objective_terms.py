@@ -22,42 +22,15 @@ Audit Phase 3 spec (from docs/audit-response-and-reconstruction-plan-2026-05-17.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Callable, Literal
+from dataclasses import dataclass
+from typing import Callable
 
 import jax
 import jax.numpy as jnp
 import numpy as np
 
+from chuck_mcp_v2.types import Plate, ROLE_FAMILIES, Role
 from delta_e import delta_e_76, delta_e_94, delta_e_2000
-
-# ----------------------------------------------------------------------
-# Plate domain object (subset of the design doc Plate, plus differentiable fields)
-# ----------------------------------------------------------------------
-
-Role = Literal["underlayer_light", "local_chroma", "regional_mass", "key_detail"]
-ROLE_FAMILIES: tuple[str, ...] = ("underlayer_light", "local_chroma", "regional_mass", "key_detail")
-
-
-@dataclass
-class Plate:
-    """Solver-facing Plate representation.
-
-    `mask` is a continuous float array in [0, 1] of shape (H, W) — the
-    cumulative inked coverage on this plate. JAX-differentiable.
-    `pigment_lab` is the Lab color the plate prints at full coverage.
-
-    The static design-doc Plate (block_id, cell_zone_ids, role, mirror) is
-    metadata; this is the continuous-state slice the solver sees.
-    """
-
-    block_id: int
-    mask: jnp.ndarray              # (H, W) in [0, 1]
-    pigment_lab: jnp.ndarray       # (3,) Lab
-    opacity: float                 # 0..1
-    role: Role
-    cell_zone_ids: tuple[int, ...] = field(default_factory=tuple)
-    pass_index: int = 0
 
 
 # Default weights for composite_loss — wired to a single dataclass so callers
@@ -433,8 +406,10 @@ def load_bearing_singleton_penalty(
         rendered = _render_with_opacities(plates, ops, render_fn)
         return final_image_loss(rendered, target)
 
-    # JIT the gradient so subsequent solver steps reuse the compiled graph.
-    grad = jax.jit(jax.grad(_loss_of_opacities))(opacities)
+    # NOTE: do NOT jit() the gradient here — `plates` is a Python list of
+    # dataclasses that changes identity every solver step, busting JIT cache.
+    # Caller controls compile boundaries via the outer step jit.
+    grad = jax.grad(_loss_of_opacities)(opacities)
     abs_grad = jnp.abs(grad)
 
     # Anything below epsilon is "not load-bearing". eps = 1e-3 ΔE_76 per
@@ -501,27 +476,26 @@ def load_bearing_pair_penalty(
         rendered = _render_with_opacities(plates, ops, render_fn)
         return final_image_loss(rendered, target)
 
-    # JIT the gradient so each ablation call after the first is fast.
-    grad_fn = jax.jit(jax.grad(_loss_of_opacities))
+    # NOTE: do NOT jit() the gradient — see load_bearing_singleton_penalty for why.
+    grad_fn = jax.grad(_loss_of_opacities)
     g = grad_fn(opacities)
 
-    # Single Hessian-vector product (HVP) approach: compute the full
-    # Hessian column for each unique j across the candidate pairs in one
-    # forward+backward pass via jacrev. For Emma scale (27 plates), the
-    # full Hessian is 27*27 ≈ 700 ops — still cheaper than 20 separate
-    # grad calls and amortises after first JIT compile.
+    # Compute one Hessian column per unique j across candidate pairs, then
+    # look up off-diagonal entries from those columns. For Emma scale (27
+    # plates, top_k=20 → ~20 unique j's), this is 20 grad calls instead of
+    # 40 (singleton + each pair) — and reuses the same g for all i.
     unique_js = sorted({j for _, j in candidates})
     eps = 1e-3
-    # Build batched perturbed opacity matrix (J, n) where each row perturbs one j.
-    perturbations = jnp.stack(
-        [opacities.at[j].add(eps) for j in unique_js], axis=0
-    )
-    g_perturbed = jax.vmap(grad_fn)(perturbations)  # (J, n)
-    j_to_row = {j: idx for idx, j in enumerate(unique_js)}
+    # Sequential rather than vmap: vmap over grad-of-closure-list forces
+    # recompilation per element. Loop in Python; each grad call is ~50ms.
+    j_to_g_pert = {}
+    for j in unique_js:
+        perturbed = opacities.at[j].add(eps)
+        j_to_g_pert[j] = grad_fn(perturbed)
 
     penalty = jnp.float32(0.0)
     for i, j in candidates:
-        h_ij = (g_perturbed[j_to_row[j]][i] - g[i]) / eps
+        h_ij = (j_to_g_pert[j][i] - g[i]) / eps
         cancel_strength = (
             jax.nn.relu(h_ij)
             * jax.nn.relu(1e-3 - jnp.abs(g[i]))

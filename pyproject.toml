@@ -26,16 +26,30 @@ dependencies = [
 
 [project.optional-dependencies]
 mcp = ["fastmcp>=2.0"]
-solver = ["jax[cuda13]>=0.10.0", "jaxopt>=0.8", "mixbox>=2.0", "colour-science>=0.4.4"]
-io = ["opencv-contrib-python>=4.10", "scikit-image>=0.24", "shapely>=2.0"]
+solver = [
+    "jax[cuda13]>=0.10.0",
+    "jaxopt>=0.8.5",
+    "mixbox>=2.0",
+    "colour-science>=0.4.4",
+]
+solver-cpu = [
+    "jax>=0.10.0",
+    "jaxlib>=0.10.0",
+    "jaxopt>=0.8.5",
+    "mixbox>=2.0",
+    "colour-science>=0.4.4",
+]
+io = ["opencv-python-headless>=4.10", "scikit-image>=0.24", "shapely>=2.0"]
+viz = ["matplotlib>=3.10"]
 dev = ["pytest>=8.0", "pytest-asyncio>=0.23", "mypy>=1.10", "ruff>=0.5"]
 
 [project.scripts]
 woodblock-mcp = "backend.mcp.v23_server:main"
 chuck-layering-mcp = "backend.mcp.v23_server:main"
+plan-emma = "chuck_mcp_v2.plan_emma:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["backend/mcp", "backend/services/v23"]
+packages = ["backend/mcp", "backend/services/v23", "chuck_mcp_v2"]
 
 [tool.ruff]
 line-length = 100

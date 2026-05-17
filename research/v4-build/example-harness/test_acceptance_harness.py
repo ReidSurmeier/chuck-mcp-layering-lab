@@ -217,7 +217,7 @@ def test_normalizes_alpha_maps_to_visible_range(tmp_path: Path) -> None:
 def test_cli_invocation_smoke(synthetic_plan_dir: Path) -> None:
     out = synthetic_plan_dir / "cli_sheet.png"
     # Invoke the package as a module — exercises __main__.py too.
-    pkg_parent = str(Path(__file__).resolve().parent.parent)
+    pkg_parent = str(Path(__file__).resolve().parent)
     env_overlay = f"import sys; sys.path.insert(0, {pkg_parent!r}); "
     cmd = [
         sys.executable,

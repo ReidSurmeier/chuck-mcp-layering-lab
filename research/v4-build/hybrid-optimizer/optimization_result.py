@@ -17,53 +17,12 @@ This module defines the result envelope. Downstream consumers:
 from __future__ import annotations
 
 import json
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 import numpy as np
-
-
-@dataclass
-class SolvedPlate:
-    """One physical block after Stage 3/4. Mirrors `backend...Plate` but
-    is solver-internal: cell IDs are frozen by Stage 2, continuous fields
-    are filled by Stage 3, the inked mask is repaired by Stage 4.
-
-    Field order matches docs/v2-design-locked-2026-05-16.md domain objects.
-    """
-
-    block_id: int
-    cell_zone_ids: List[int]
-    pigment_id: str
-    opacity: float
-    dilution: float
-    role: str  # underlayer_light | local_chroma | regional_mass | key_detail
-    pass_index: int  # which pull (1..132)
-    pigment_weights: Dict[str, float] = field(default_factory=dict)
-    inked_mask: Optional[np.ndarray] = None  # H x W binary, may be None pre-render
-    area_px: int = 0
-    repair_stats: Dict[str, Any] = field(default_factory=dict)
-    mirror: bool = True
-
-    def to_dict(self, include_mask: bool = False) -> Dict[str, Any]:
-        d: Dict[str, Any] = {
-            "block_id": int(self.block_id),
-            "cell_zone_ids": [int(x) for x in self.cell_zone_ids],
-            "pigment_id": str(self.pigment_id),
-            "opacity": float(self.opacity),
-            "dilution": float(self.dilution),
-            "role": str(self.role),
-            "pass_index": int(self.pass_index),
-            "pigment_weights": {k: float(v) for k, v in self.pigment_weights.items()},
-            "area_px": int(self.area_px),
-            "repair_stats": _jsonify(self.repair_stats),
-            "mirror": bool(self.mirror),
-        }
-        if include_mask and self.inked_mask is not None:
-            d["inked_mask_shape"] = list(self.inked_mask.shape)
-            d["inked_mask_dtype"] = str(self.inked_mask.dtype)
-        return d
+from chuck_mcp_v2.types import Plate as SolvedPlate
 
 
 @dataclass
