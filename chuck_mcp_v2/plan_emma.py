@@ -159,6 +159,163 @@ def _grid_cell_graph(
     return {"cells": cells}, edges, edge_weights
 
 
+def _snic_cell_graph(
+    image_path: str,
+    solver_shape: tuple[int, int],
+    requested_cells: int,
+    *,
+    max_dim: int = 2048,
+) -> tuple[
+    dict,
+    list[tuple[int, int]],
+    dict[tuple[int, int], float],
+    np.ndarray,
+]:
+    """Real SNIC-driven replacement for ``_grid_cell_graph``.
+
+    Runs the v5 SNIC superpixel proposer on the ORIGINAL image (capped at
+    ``max_dim``), then nearest-neighbour downscales the integer label map into
+    the solver shape so downstream consumers stay deterministic on the
+    solver-space grid. Per-cell stats, bounds, and 4-connected adjacency are
+    computed at solver resolution to match the shape ``_grid_cell_graph``
+    returned.
+
+    Returns:
+        cell_graph_dict, edges, edge_weights, solver_label_image
+
+    ``solver_label_image`` is a (H_s, W_s) int32 label map at the solver
+    resolution; callers may pass it into the v5 face-region constraint step
+    instead of rebuilding a rasterised label map from cell bounds.
+    """
+    import importlib
+
+    snic_module = importlib.import_module("snic_proposer")
+
+    H_s, W_s = solver_shape
+
+    image = Image.open(image_path).convert("RGB")
+    if max(image.size) > max_dim:
+        image.thumbnail((max_dim, max_dim), Image.Resampling.LANCZOS)
+    rgb_src = np.asarray(image, dtype=np.uint8)
+    rgb01 = rgb_src.astype(np.float32) / 255.0
+    lab = snic_module._rgb_to_lab(rgb01)
+    labels_src, _backend = snic_module._run_snic(lab, target_cells=requested_cells)
+
+    src_image_lbl = Image.fromarray(labels_src.astype(np.int32), mode="I")
+    solver_label_img = np.asarray(
+        src_image_lbl.resize((W_s, H_s), Image.Resampling.NEAREST),
+        dtype=np.int32,
+    )
+    target_rgb_solver = np.asarray(
+        image.resize((W_s, H_s), Image.Resampling.LANCZOS), dtype=np.uint8
+    )
+
+    flat_labels = solver_label_img.ravel()
+    if (flat_labels < 0).any():
+        flat_labels = np.where(flat_labels >= 0, flat_labels, 0)
+        solver_label_img = flat_labels.reshape(solver_label_img.shape)
+
+    n_labels = int(flat_labels.max()) + 1
+    counts = np.bincount(flat_labels, minlength=n_labels)
+    sums_rgb = np.zeros((n_labels, 3), dtype=np.float64)
+    sums_y = np.zeros(n_labels, dtype=np.float64)
+    sums_x = np.zeros(n_labels, dtype=np.float64)
+    min_y = np.full(n_labels, H_s, dtype=np.int64)
+    max_y = np.full(n_labels, -1, dtype=np.int64)
+    min_x = np.full(n_labels, W_s, dtype=np.int64)
+    max_x = np.full(n_labels, -1, dtype=np.int64)
+
+    np.add.at(
+        sums_rgb,
+        flat_labels,
+        target_rgb_solver.astype(np.float64).reshape(-1, 3),
+    )
+    yy, xx = np.mgrid[0:H_s, 0:W_s]
+    np.add.at(sums_y, flat_labels, yy.ravel())
+    np.add.at(sums_x, flat_labels, xx.ravel())
+
+    # Bounds: per-row scan (cheap; H_s typically <= 256).
+    for y in range(H_s):
+        row = solver_label_img[y]
+        for c in np.unique(row).tolist():
+            xs = np.where(row == c)[0]
+            if xs.size == 0:
+                continue
+            if y < min_y[c]:
+                min_y[c] = y
+            if y > max_y[c]:
+                max_y[c] = y
+            x0, x1 = int(xs.min()), int(xs.max())
+            if x0 < min_x[c]:
+                min_x[c] = x0
+            if x1 > max_x[c]:
+                max_x[c] = x1
+
+    # Bulk Lab conversion for the cells we keep — needed both by the
+    # downstream production_plan_builder (chroma/hue partitioner) and by
+    # snic_proposer.hue_cluster_count when called by plan_emma for meta.
+    mean_rgb_all = np.zeros((n_labels, 3), dtype=np.float32)
+    valid = np.zeros(n_labels, dtype=bool)
+    for cid in range(n_labels):
+        n = int(counts[cid])
+        if n == 0:
+            continue
+        valid[cid] = True
+        mean_rgb_all[cid] = (sums_rgb[cid] / n).astype(np.float32)
+    mean_lab_all = np.zeros((n_labels, 3), dtype=np.float32)
+    if valid.any():
+        import importlib
+
+        snic_module = importlib.import_module("snic_proposer")
+        mean_lab_all[valid] = snic_module._rgb_to_lab(
+            mean_rgb_all[valid] / 255.0
+        )
+
+    cells: dict[int, dict[str, Any]] = {}
+    for cid in range(n_labels):
+        n = int(counts[cid])
+        if n == 0:
+            continue
+        cy = float(sums_y[cid] / n)
+        cx = float(sums_x[cid] / n)
+        cells[int(cid)] = {
+            "mean_rgb": mean_rgb_all[cid],
+            "mean_lab": mean_lab_all[cid],
+            "pixels": n,
+            "centroid_yx": (cy, cx),
+            "bounds_yxyx": (
+                int(min_y[cid]),
+                int(min_x[cid]),
+                int(max_y[cid] + 1),
+                int(max_x[cid] + 1),
+            ),
+        }
+
+    adj_pairs: set[tuple[int, int]] = set()
+    left = solver_label_img[:, :-1]
+    right = solver_label_img[:, 1:]
+    mh = left != right
+    for a_lbl, b_lbl in zip(left[mh].tolist(), right[mh].tolist()):
+        if a_lbl in cells and b_lbl in cells:
+            adj_pairs.add((min(a_lbl, b_lbl), max(a_lbl, b_lbl)))
+    top = solver_label_img[:-1, :]
+    bot = solver_label_img[1:, :]
+    mv = top != bot
+    for a_lbl, b_lbl in zip(top[mv].tolist(), bot[mv].tolist()):
+        if a_lbl in cells and b_lbl in cells:
+            adj_pairs.add((min(a_lbl, b_lbl), max(a_lbl, b_lbl)))
+
+    edges = sorted(adj_pairs)
+    edge_weights: dict[tuple[int, int], float] = {}
+    for a, b in edges:
+        ca = np.asarray(cells[a]["mean_rgb"], dtype=np.float32)
+        cb = np.asarray(cells[b]["mean_rgb"], dtype=np.float32)
+        dist = float(np.linalg.norm(ca - cb))
+        edge_weights[(a, b)] = float(np.clip(255.0 / (dist + 1.0), 0.1, 10.0))
+
+    return {"cells": cells}, edges, edge_weights, solver_label_img
+
+
 def _plan_to_hybrid_input(
     target_rgb: np.ndarray,
     cell_graph_dict: dict,
@@ -446,7 +603,45 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     production = _load_package("production_solver", PRODUCTION_DIR)
 
     target_rgb = _load_target(args.image, synthetic=args.synthetic, size=args.size)
-    cell_graph_dict, edges, edge_weights = _grid_cell_graph(target_rgb, args.cells)
+
+    # v5 cell proposer:
+    #   - real input image  → SNIC superpixels (image-driven, ink-bearing cells)
+    #   - synthetic OR --use-grid-cells → legacy fixed-grid placeholder
+    #
+    # Per docs/v2-design-locked-2026-05-16.md and the segmentation-cellgraph
+    # research verdict, SNIC is the locked-in baseline for v5: connectivity is
+    # guaranteed, output is deterministic, and the per-cell mean colour comes
+    # from real pixels — eliminating the empty-plate kraft-paper failure the
+    # acceptance sheet exhibited on the v4 grid placeholder.
+    cell_proposal_source = "grid"
+    solver_label_img: np.ndarray | None = None
+    use_grid = (
+        args.synthetic
+        or args.image is None
+        or getattr(args, "use_grid_cells", False)
+    )
+    if not use_grid:
+        try:
+            cell_graph_dict, edges, edge_weights, solver_label_img = _snic_cell_graph(
+                args.image,
+                solver_shape=target_rgb.shape[:2],
+                requested_cells=args.cells,
+            )
+            cell_proposal_source = "snic"
+        except Exception as exc:  # pragma: no cover — diagnostic fallback only
+            print(
+                json.dumps(
+                    {"snic_proposer_fallback": repr(exc), "fallback": "grid"},
+                    indent=2,
+                ),
+                file=sys.stderr,
+            )
+            cell_graph_dict, edges, edge_weights = _grid_cell_graph(
+                target_rgb, args.cells
+            )
+    else:
+        cell_graph_dict, edges, edge_weights = _grid_cell_graph(target_rgb, args.cells)
+
     production_plan = production.build_production_plan(
         target_rgb,
         cell_graph_dict,
@@ -454,6 +649,20 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         target_total_pulls=args.target_pulls,
         target_pull_tolerance=args.target_pull_tolerance,
     )
+
+    # Stamp meta for downstream auditability — production_plan_builder owns
+    # the plan; we attach provenance for the cell-proposal stage here.
+    production_plan.meta = dict(production_plan.meta) if production_plan.meta else {}
+    production_plan.meta["cell_proposal_source"] = cell_proposal_source
+    production_plan.meta["cell_proposal_target_cells"] = int(args.cells)
+    if cell_proposal_source == "snic":
+        try:
+            import snic_proposer as _snic_mod  # noqa: WPS433  # local helper
+            production_plan.meta["hue_cluster_count"] = int(
+                _snic_mod.hue_cluster_count(cell_graph_dict)
+            )
+        except Exception:  # pragma: no cover
+            production_plan.meta["hue_cluster_count"] = 0
     # v5 spatial constraint: tag underlayer plates with their face region(s)
     # and drop cells that don't belong (hair on a skin plate, background on a
     # lip plate, etc.). Skipped for synthetic runs since there is no face to
@@ -585,6 +794,22 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "Disable v5 MediaPipe face-region constraint on underlayer plates. "
             "Use for non-portrait inputs or when MediaPipe models are missing."
+        ),
+    )
+    parser.add_argument(
+        "--use-grid-cells",
+        action="store_true",
+        help=(
+            "Force the legacy fixed-grid cell proposer instead of SNIC. "
+            "Useful for synthetic inputs or when pysnic/skimage are missing."
+        ),
+    )
+    parser.add_argument(
+        "--no-mokuhanga-pigments",
+        action="store_true",
+        help=(
+            "Disable the v5 mokuhanga-pigments adapter. Use when the pigment "
+            "library or its YAML/rule-classifier deps are unavailable."
         ),
     )
     parser.add_argument(

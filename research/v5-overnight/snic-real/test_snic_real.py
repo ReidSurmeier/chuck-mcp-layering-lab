@@ -151,6 +151,12 @@ def test_plan_emma_uses_snic_not_grid(tmp_path):
         "1",
         "--mill-radius-px",
         "1",
+        # Skip the v5 mediapipe constraint step — orthogonal to SNIC integration
+        # and gated on optional cv2 / mediapipe deps that may not be present.
+        "--no-face-regions",
+        # Skip the v5 mokuhanga-pigments adapter — also orthogonal and gated
+        # on yaml + the rule classifier dependency tree.
+        "--no-mokuhanga-pigments",
         "--output",
         str(result_path),
         "--plan-output",
