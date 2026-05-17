@@ -20,6 +20,18 @@ import argparse, json, sys
 from pathlib import Path
 
 
+def _first_existing(paths: list[Path]) -> Path | None:
+    for path in paths:
+        if path.exists():
+            return path
+    return None
+
+
+def _sort_key(plate: dict) -> tuple[int, int]:
+    order = plate.get("pass_index") or plate.get("order_step") or plate.get("block_id") or 0
+    return int(order), int(plate.get("block_id", 0) or 0)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--hybrid-result", required=True, type=Path)
@@ -51,10 +63,13 @@ def main() -> int:
             block_id = int(plate.get("block_id", 0))
             cells = list(plate.get("cell_zone_ids", []))
             role = plate.get("role", "regional_mass")
+            first_pull = (plate.get("pulls") or [{}])[0]
             plan["plates"].append({
                 "block_id": block_id,
                 "cells_in_plate": cells,
                 "role": role,
+                "order_step": int(first_pull.get("order_step", block_id) or block_id),
+                "pass_index": int(first_pull.get("pass_index", block_id) or block_id),
                 "dpi": 300,
             })
 
@@ -84,6 +99,20 @@ def main() -> int:
                 entry["cells_in_plate"] = list(plate["cell_zone_ids"])
             if plate.get("role"):
                 entry["role"] = plate["role"]
+            if plate.get("pass_index") is not None:
+                entry["pass_index"] = int(plate["pass_index"])
+            if plate.get("pigment_id"):
+                entry["pigment_id"] = plate["pigment_id"]
+            if plate.get("opacity") is not None:
+                entry["opacity"] = plate["opacity"]
+            if plate.get("dilution") is not None:
+                entry["dilution"] = plate["dilution"]
+
+    # The alpha dumper writes pull_NNN_alpha.png by sorted pull order, not by
+    # arbitrary block_id or sparse solver pass_index. Reconstruct the same order
+    # here so validators receive the actual printed-area mask for each block.
+    for pull_index, plate in enumerate(sorted(plan["plates"], key=_sort_key), start=1):
+        plate["pull_index"] = pull_index
 
     # role labels per cell (merge from plates)
     role_labels: dict = {}
@@ -111,22 +140,48 @@ def main() -> int:
                     break
 
     alpha_dir = art / "alpha_masks"
+    alphas_dir = art / "alphas"
+    for p in plan["plates"]:
+        bid = p["block_id"]
+        pull_index = int(p.get("pull_index", bid) or bid)
+        cand = _first_existing([
+            alphas_dir / f"pull_{pull_index:03d}_alpha.png",
+            alphas_dir / f"pull_{bid:03d}_alpha.png",
+            alpha_dir / f"alpha_{pull_index:02d}.png",
+            alpha_dir / f"alpha_{bid:02d}.png",
+            alpha_dir / f"alpha_{bid}.png",
+        ])
+        if cand:
+            p["alpha_preview"] = str(cand)
+            p["inked_mask"] = str(cand)
+
     if alpha_dir.is_dir():
         for p in plan["plates"]:
+            if p.get("alpha_preview"):
+                continue
             bid = p["block_id"]
             for pat in (f"alpha_{bid:02d}.png", f"alpha_{bid}.png"):
                 cand = alpha_dir / pat
                 if cand.exists():
                     p["alpha_preview"] = str(cand)
+                    p["inked_mask"] = str(cand)
                     break
 
     proofs = sorted([str(x) for x in art.glob("cumulative_pull_*.png")]) \
         or sorted([str(x) for x in art.glob("pull_*.png")]) \
         or sorted([str(x) for x in art.glob("proof_*.png")])
     plan["proof_states"] = proofs
-    # also attach pull_preview to each plate (cumulative AFTER pull N)
-    for i, p in enumerate(plan["plates"]):
-        if i < len(proofs):
+    # Attach pull_preview to each plate (cumulative AFTER that physical pull).
+    pulls_dir = art / "pulls"
+    for i, p in enumerate(sorted(plan["plates"], key=lambda x: int(x.get("pull_index", 0) or 0))):
+        pull_index = int(p.get("pull_index", i + 1) or (i + 1))
+        cand = _first_existing([
+            pulls_dir / f"pull_{pull_index:03d}.png",
+            art / f"pull_{pull_index:03d}.png",
+        ])
+        if cand:
+            p["pull_preview"] = str(cand)
+        elif i < len(proofs):
             p["pull_preview"] = proofs[i]
 
     fc = art / "final_composite.png"

@@ -297,6 +297,20 @@ def _initial_params(plates: List[FrozenPlate], K_max: int):
         di = float(np.clip(p.initial_dilution, 1e-3, 1 - 1e-3))
         arr[i, 0] = float(np.log(op / (1 - op)))
         arr[i, 1] = float(np.log(di / (1 - di)))
+        weights = getattr(p, "pigment_weights", {}) or {}
+        if weights:
+            vals = np.array(
+                [float(weights.get(pid, 0.0)) for pid, _ in p.pigment_choices],
+                dtype=np.float32,
+            )
+            total = float(vals.sum())
+            if total > 1e-9:
+                vals = np.clip(vals / total, 1e-6, 1.0)
+                logits = np.log(vals)
+                logits = logits - float(logits.mean())
+                for k, v in enumerate(logits):
+                    arr[i, 2 + k] = float(v)
+                continue
         # Uniform pigment weights (logits = 0)
         for k in range(len(p.pigment_choices)):
             arr[i, 2 + k] = 0.0

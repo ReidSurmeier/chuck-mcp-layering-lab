@@ -42,6 +42,10 @@ _Avoid_: separation, plate set.
 The full machine-readable output: `Stack` + per-**Impression** **Mask** + **Block** assignments (DSATUR-packed post-solve) + **Order** + per-region confidence labels + plain-language print recipe. Exported as a ZIP.
 _Avoid_: recipe (overloaded — use "print recipe" only for the plain-language markdown subset).
 
+**V1 acceptance target**:
+A visually plausible mokuhanga **Block**/**Impression**/**proof** plan that a printmaker can inspect and test. Physical-plan gates are primary: mask-backed geometry, **Order**, proof progression, jigsaw separability, and underprint plausibility. Final-image ΔE is telemetry and an improvement target until empirical **Overprint** calibration exists.
+_Avoid_: treating V1 as recovered artist process or as a hard quantitative reconstruction gate.
+
 **Strategy template**:
 One of three named, hardcoded ordered impression-family sequences (`portrait_emma`, `landscape`, `high_chroma_graphic`) used as solver init bias + M-prior anchor. Picked by the model based on measurable backend hints + image preview. Not a database — three static templates only.
 
@@ -61,6 +65,14 @@ Thin-layer **Overprint** where the top **Impression** is intentionally transluce
 
 **Render tier**:
 Forward-render engine choice — `t1_mixbox` (Mixbox lerp, ships v23, models mixing), `t2_empirical` (2-layer LUT from artist's swatch sheet, ships v23.1, models overprint via measured data), `t3_spectral` (K-M two-flux recursion with 8λ (K, S) fit, ships v24, models overprint via physics). Returned by `get_render_tier()` MCP tool at solve time based on available calibration + stack depth.
+
+**Review preview**:
+A human-facing PNG/JPG visualization of a **Block**, **Impression**, proof, or final composite. It may include wood grain, labels, stretch contrast, or contact-sheet layout. It is never authoritative geometry.
+_Avoid_: using previews as validator input.
+
+**Validator truth**:
+The physical object a validator is meant to score: **Mask** geometry, **Block** assignment, **Impression** order, proof state, or final composite. Geometry validators must prefer the authoritative **Mask** over a **Review preview**. A wood-grain block preview is not a **Mask**.
+_Avoid_: scoring layout/contact-sheet pixels as if they were print data.
 
 ## Relationships
 
@@ -92,3 +104,5 @@ Forward-render engine choice — `t1_mixbox` (Mixbox lerp, ships v23, models mix
 - "Block scans" / "registered scans" / "ground-truth masks" — explicitly OUT of scope for v23. Never claim or imply scan-driven evidence.
 - "Mixbox predicts the print" — wrong without the qualifier "**as if pre-mixed in a well**". Mixbox models **Mixing**, not **Overprint**. WB-LANG-02 lint catches the bare claim.
 - "Overlay" — overloaded between print-on-print (mokuhanga) and GUI compositing (alpha). Use **Overprint** for the print event; reserve "overlay" only for UI compositing layers.
+- "Preview" — overloaded between visual review and physical geometry. Use **Review preview** for human images and **Mask** / **Validator truth** for the data that gates acceptance.
+- "Solved image" — overloaded. V1 accepts a plausible print plan with measured final-match telemetry; it does not promise dE < 8 until overprint calibration and topology are mature.

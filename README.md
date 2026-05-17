@@ -1,163 +1,107 @@
 # Chuck MCP Layering Lab
 
-Chuck MCP Layering Lab is a separate experiment for testing mokuhanga-style
-layer planning, jigsaw color organization, pigment guidance, and MCP validation
-around the Chuck Close / Emma printmaking problem.
+Chuck MCP Layering Lab is a separate experiment for building and testing a
+mokuhanga-style Block / Impression / Mask planner around the Chuck Close /
+Emma printmaking problem.
 
-This repo is intentionally separate from `emma-mokuhanga-mcp`. Do not mix these
-repos, outputs, or MCP tool surfaces.
+This repository is intentionally separate from `emma-mokuhanga-mcp`. Do not mix
+the repos, outputs, MCP tool surfaces, or issue trackers.
 
-## Status
+## V1 Acceptance
+
+V1 is a visually plausible mokuhanga block/proof planner, not a claim that the
+input image has been quantitatively solved or that the artist's real process has
+been recovered.
+
+Primary acceptance gates:
+
+- validators score authoritative Masks and proof states, not contact-sheet
+  pixels;
+- the Order and proof progression should read like an incremental woodblock
+  print;
+- Mask geometry should be connected and separable enough for jigsaw carving;
+- Underprints are designed support structures, not inferred physical evidence;
+- final-match dE is reported as telemetry and an improvement target.
+
+See `CONTEXT.md`, `docs/adr/0006-validator-truth-over-previews.md`, and
+`docs/adr/0007-v1-accepts-plausible-print-plan.md`.
+
+## Current Status
 
 Current branch: `main`
+
+GitHub repo: `ReidSurmeier/chuck-mcp-layering-lab`
 
 Fork lineage:
 
 - upstream base: `ReidSurmeier/woodblock-reidsurmeier-wtf`
-- fork point: `6db6f11 Rewrite Chuck MCP README for role-based solver`
-- saved baseline branch: `checkpoint/pre-cell-graph-jigsaw-tints`
 - current repo remote: `ReidSurmeier/chuck-mcp-layering-lab`
 
-The current build runs end-to-end through the MCP registry, the JAX solver,
-cell-graph analysis, printability repair, production-batch planning, and visual
-carousel export.
+Latest verified Emma run:
 
-It is not yet a final carving plan. The best older 9-pull solver still matches
-the input image more closely by Delta E. This fork is improving organization,
-jigsaw grouping, review tooling, and printability constraints so the next solver
-iteration can optimize the right structure instead of producing pixel-level
-reconstruction plates.
+```text
+/home/reidsurmeier/cnc-carving-jobs/emma-overnight-iter-13/
+/srv/woodblock-share/chuck-mcp-iterations/current-review/2026-05-17_v5-overnight-iter-13/sheet_iter_13.png
+```
 
-## Goal
+Iter 13 fixed two important measurement/plumbing issues:
 
-The project is testing a production-oriented abstraction:
+- plate-not-composite now scores Mask truth and passes `28/28`;
+- the outer loop now warm-starts from previous solved/repaired state instead of
+  replaying the same solve.
+
+Latest metrics:
+
+```text
+gates:        3 / 5
+dE_mean:      18.778
+dE_p95:       40.3015
+underprint:   34.35% legacy overlap metric
+GPU:          JAX 0.10.0, backend gpu, CudaDevice(id=0)
+```
+
+This is not good enough as a final print plan yet. The remaining hard failures
+are carved-region topology, jigsaw separation, Underprint methodology scoring,
+and color/render fidelity.
+
+## Active Pipeline
+
+The research path currently used for Emma validation is:
 
 ```text
 input image
-  -> compressed differentiable study stack
-  -> cell graph / jigsaw regions
-  -> production batches and repeated pulls
-  -> CNC-safe vector plates
+  -> SNIC/cell graph
+  -> production plan candidates
+  -> hybrid optimizer
+  -> morphology repair
+  -> alpha/proof artifact dump
+  -> validator plan
+  -> review sheet + metrics
 ```
 
-The solver should build an image through overlapping translucent or semi-opaque
-impressions, not through isolated pixel masks. Early plates may contain detailed
-carved geometry, but their role should still be supportive: light, transparent,
-and useful underneath later color. Later plates should carry stronger chroma,
-regional hue changes, shadows, and key/detail work.
+Important local entry points:
 
-For the Emma reference, the useful scale reference is still Yasu Shibata's
-production: 27 woodblocks, 113 colors, and 132 pulls. A 9-12 impression JAX
-stack is a study, not an adequate production count.
-
-## Current Pipeline
-
-The active v23 pipeline is:
-
-1. `S1` ingest and cache target image.
-2. `S3` hue-family analysis.
-3. `S3.b` SLIC/cell-graph construction for regional jigsaw reasoning.
-4. `S4` role-aware warm start.
-5. `S5` JAX/JAXopt inverse solver.
-6. `S6.b` jigsaw organization using the persisted cell graph.
-7. `S6.c` Delta-E-guarded printability repair before vector export.
-8. `S6.d` read-only production batch proposal.
-9. `S7+` state masks, block packing, SVG/export surfaces.
-
-The render model is still RGB/JAX pigment blending. It is useful for iteration,
-but physical mokuhanga color needs swatches and calibration before editioning.
-
-## Implemented Changes
-
-- Persisted cell graph:
-  - `cell_labels.npy`
-  - `cell_graph.json`
-  - per-cell color, tone, role hints, adjacency, and area diagnostics
-
-- Jigsaw organization:
-  - uses the persisted cell graph instead of re-segmenting
-  - avoids recovering tint in cells already active enough
-  - separates adaptive support roles from local wash/detail roles
-
-- Printability repair:
-  - removes tiny islands before SVG export
-  - guards repair with Delta E so topology cleanup cannot silently wreck color
-  - reports component, island, partial-cell, overlap, and low-alpha pressure
-
-- Flexible pigment and wash library:
-  - expanded from the parent catalog to 36 entries
-  - includes natural/synthetic pigment anchors and adaptive wash colors
-  - treats the list as expandable guidance, not a fixed enforced palette
-  - `suggest_pigment_mix` returns premix starting ratios when no single pigment
-    is a good match
-
-- Production batch planner:
-  - proposes a `4 + 4 + detail` review structure
-  - first batch: light pink, blue, orange, and green support roles
-  - second batch: regional color/depth roles
-  - final batch: regional hue shifts, shadows, contours, and key/detail regions
-  - writes `production_batch_plan.json`
-
-- Adaptive ink and proof-state planner:
-  - treats print colors as adaptive ink batches, not a fixed pigment list
-  - estimates block count from image complexity instead of forcing 27 plates
-  - generates cumulative pull previews after every block
-  - generates proof previews after small block batches, matching the Chuck Close
-    reference methodology
-
-- Carousel review export:
-  - writes one slide per plate and one slide after each cumulative pull
-  - includes both the production-batch proposal and the flat solver sequence
-  - writes a contact sheet and manifest for quick review
-
-## MCP Tool Surface
-
-The MCP registry is built from [backend/mcp/registry.py](/home/reidsurmeier/src/chuck-mcp-layering-lab/backend/mcp/registry.py).
-
-Important tools:
-
-- `propose_stack`
-- `inspect_plan`
-- `forward_render`
-- `score_stack_delta_e`
-- `score_candidate_stack`
-- `solver_telemetry`
-- `get_pigments`
-- `suggest_pigment_mix`
-- `cell_at`
-- `inspect_cell`
-- `score_printability`
-- `propose_plate_reorganization`
-- `plan_production_batches`
-- `plan_adaptive_ink_stack`
-- `export_print_plan`
-- `export_svg`
-- `export_block_svgs`
-- `generate_carve_order`
-
-`propose_plate_reorganization` and `plan_production_batches` are read-only
-planning tools. They propose organization changes; they do not mutate solver
-masks yet.
+- `chuck_mcp_v2/plan_emma.py`
+- `research/v4-build/hybrid-optimizer/alternating_loop.py`
+- `research/v5-overnight/loop-runner/run_iter.sh`
+- `research/v5-overnight/loop-runner/build_validator_plan.py`
+- `research/v3-construction/validators-reconstruction/run_all_validators.py`
+- `research/v5-overnight/alpha-proof-dumper/dumper.py`
 
 ## Setup
 
-Use Python 3.11+ with an NVIDIA GPU.
+Use the renderer environment for the current research path:
 
 ```bash
 cd /home/reidsurmeier/src/chuck-mcp-layering-lab
-
-python3 -m venv .venv-v23
-. .venv-v23/bin/activate
-python -m pip install --upgrade pip
-python -m pip install -e ".[solver,mcp,io,dev]"
+. .venv-renderer/bin/activate
+python -m pip install -e ".[solver,mcp,io,viz,dev]"
 ```
 
 Verify JAX sees the GPU:
 
 ```bash
-JAX_PLATFORMS=cuda \
-XLA_PYTHON_CLIENT_PREALLOCATE=false \
-.venv-v23/bin/python - <<'PY'
+.venv-renderer/bin/python - <<'PY'
 import jax
 print(jax.__version__)
 print(jax.default_backend())
@@ -165,236 +109,101 @@ print(jax.devices())
 PY
 ```
 
-Expected backend:
+Expected backend on this machine:
 
 ```text
 gpu
 ```
 
-## Run Through MCP
+The CUDA runtime currently emits a kernel-driver-version warning in logs, but
+JAX still reports `CudaDevice(id=0)` and runs the Emma solver on GPU.
+
+## Run Latest Emma Loop
 
 ```bash
-WOODBLOCK_DISABLE_SAM=1 \
-JAX_PLATFORMS=cuda \
-XLA_PYTHON_CLIENT_PREALLOCATE=false \
-.venv-v23/bin/python - <<'PY'
-from backend.mcp.registry import call_mcp_tool
-
-image = "/srv/woodblock-share/input-images/close_emma_2002_2048.jpg"
-r = call_mcp_tool("propose_stack", {
-    "path": image,
-    "solve_profile": "thorough",
-    "m_prior": 10,
-})
-print(r.model_dump(mode="json"))
-PY
+bash research/v5-overnight/loop-runner/run_iter.sh 13 extreme-cells 26
 ```
 
-Run as an MCP server:
+That writes:
+
+```text
+/home/reidsurmeier/cnc-carving-jobs/emma-overnight-iter-13/
+/srv/woodblock-share/chuck-mcp-iterations/current-review/2026-05-17_v5-overnight-iter-13/
+```
+
+The row is appended to:
+
+```text
+research/v5-overnight/loop-runner/iterations.csv
+```
+
+## Focused Tests
 
 ```bash
-.venv-v23/bin/chuck-layering-mcp
+.venv-renderer/bin/python -m pytest -q research/v3-construction/validators-reconstruction
+.venv-renderer/bin/python -m pytest -q research/v4-build/hybrid-optimizer
+.venv-renderer/bin/python -m pytest -q research/v5-overnight/loop-runner
 ```
 
-## Validation Runner
-
-The local validation script generates the full review package:
-
-```bash
-WOODBLOCK_DISABLE_SAM=1 \
-JAX_PLATFORMS=cuda \
-XLA_PYTHON_CLIENT_PREALLOCATE=false \
-PYTHONPATH=. \
-.venv-v23/bin/python scripts/validate_v23_run.py \
-  --input /srv/woodblock-share/input-images/close_emma_2002_2048.jpg \
-  --solve-profile fast \
-  --m-prior 10 \
-  --run-name chuck-batch-production-carousel-v2-fast-m10-main-20260514-1735
-```
-
-Default artifact roots:
+Latest observed results:
 
 ```text
-/srv/woodblock-share/output-images/
-/srv/woodblock-share/chuck-clean-outputs/
-/srv/woodblock-share/chuck-carousel-slides/
+validators:       17 passed
+hybrid optimizer: 13 passed
+loop runner:       1 passed
 ```
 
-## V4 Integration Smoke
+## MCP Tool Surface
 
-The v4 research build now has a direct seam-test CLI that connects the
-production-solver plan to the hybrid optimizer and the shared plate objective:
+The MCP registry is built from `backend/mcp/registry.py`.
 
-```bash
-JAX_PLATFORMS=cuda \
-XLA_PYTHON_CLIENT_PREALLOCATE=false \
-PYTHONPATH=. \
-.venv-v23/bin/python -m chuck_mcp_v2.plan_emma \
-  /srv/woodblock-share/input-images/close_emma_2002_2048.jpg \
-  --size 96 \
-  --cells 64 \
-  --plate-count 24 \
-  --max-outer-iters 1 \
-  --max-inner-iters 5 \
-  --output /srv/woodblock-share/chuck-mcp-iterations/current-review/2026-05-17_v4-seam-fix-real-emma/hybrid_result.json \
-  --plan-output /srv/woodblock-share/chuck-mcp-iterations/current-review/2026-05-17_v4-seam-fix-real-emma/production_plan.json \
-  --artifacts-dir /srv/woodblock-share/chuck-mcp-iterations/current-review/2026-05-17_v4-seam-fix-real-emma/artifacts
-```
+Important tool families:
 
-Latest v4 seam output:
+- stack proposal and inspection: `propose_stack`, `inspect_plan`,
+  `forward_render`, `score_candidate_stack`, `score_stack_delta_e`;
+- pigment and render introspection: `get_pigments`, `suggest_pigment_mix`,
+  `solver_telemetry`;
+- cell and printability review: `cell_at`, `inspect_cell`,
+  `score_printability`, `propose_plate_reorganization`;
+- production planning/export: `plan_production_batches`,
+  `plan_adaptive_ink_stack`, `export_print_plan`, `export_svg`,
+  `export_block_svgs`, `generate_carve_order`.
+
+Use public-facing docs and issues with the glossary terms Block, Impression,
+Mask, Pigment, Order, Underprint, Review preview, and Validator truth. Legacy
+research modules may still use `Plate` internally.
+
+## Product / Issue Tracker
+
+GitHub issues for this repo live at:
 
 ```text
-/srv/woodblock-share/chuck-mcp-iterations/current-review/2026-05-17_v4-seam-fix-real-emma/
+https://github.com/ReidSurmeier/chuck-mcp-layering-lab/issues
 ```
 
-That run proves the integrated path executes on CUDA and writes proof/plate PNGs.
-It is not a quality solve yet: it produced 21 active plates, improved Stage 3
-loss from `34.460` to `31.487`, passed 3 of 5 gate validators, and reported
-`delta_e_mean=21.596`. The acceptance sheet is useful for visual debugging, but
-the current grid-cell proposal is still far from the Chuck Close reference.
+Current PRD and vertical slices:
 
-Latest reviewed carousel:
+- `#1` PRD: Chuck MCP V1 plausible mokuhanga plan
+- `#2` typed validator-plan module
+- `#3` split Review preview / Validator truth / archive outputs
+- `#4` carved-region Mask topology
+- `#5` semantic Underprint scoring
+- `#6` README and MCP tool-surface alignment
+- `#7` render-tier adapter
 
-```text
-/srv/woodblock-share/chuck-carousel-slides/chuck-batch-production-carousel-v2-fast-m10-main-20260514-1735
-```
+Because this clone also has an `upstream` remote, pass
+`--repo ReidSurmeier/chuck-mcp-layering-lab` to `gh issue` commands.
 
-That run produced 75 carousel slides, including 48 production-proposal slides
-and the flat solver pull sequence.
+## Research Notes
 
-## Methodology Proof Preview
+Useful docs:
 
-The Chuck Close reference proof image shows cumulative proofs after small block
-batches, not one proof per individual block. The current methodology generator
-follows that pattern:
+- `docs/diagnosis/2026-05-17-v5-validator-and-outer-loop.md`
+- `docs/architecture/deepening-opportunities-2026-05-17.md`
+- `docs/audit-response-and-reconstruction-plan-2026-05-17.md`
+- `research/v5-overnight/loop-runner/FINAL_REPORT.md`
 
-```bash
-PYTHONPATH=. \
-.venv-v23/bin/python scripts/methodology_proof_states.py \
-  --run-name methodology-adaptive-proofs-emma-v13-20260514
-```
-
-Latest reviewed output:
-
-```text
-/srv/woodblock-share/chuck-methodology-proofs/latest-emma
-```
-
-Clean handoff folder:
-
-```text
-/srv/woodblock-share/mcp v12
-```
-
-Open first:
-
-```text
-/srv/woodblock-share/chuck-methodology-proofs/latest-emma/methodology_full_pull_preview.png
-/srv/woodblock-share/chuck-methodology-proofs/latest-emma/methodology_proof_preview.png
-/srv/woodblock-share/chuck-methodology-proofs/latest-emma/target_vs_methodology_final.png
-```
-
-Current Emma methodology run:
-
-| Metric | Value |
-|---|---:|
-| adaptive blocks | 26 |
-| proof snapshots | 7 |
-| proof end blocks | 4, 8, 12, 16, 20, 24, 26 |
-| mean DeltaE76 | 4.982 |
-| p95 DeltaE76 | 9.343 |
-
-Important interpretation: `26` is an adaptive result for this input, not a hard
-rule. The methodology is to choose as many blocks as the image needs, then show
-cumulative proofs after small block batches. The first four blocks are separated
-into pale warm, pale pink, pale cool, and pale detail scaffolds so block 1 is
-not already a fully formed proof.
-
-## Current Validation Result
-
-Latest run:
-
-```text
-chuck-batch-production-carousel-v2-fast-m10-main-20260514-1735
-```
-
-Summary:
-
-| Metric | Value |
-|---|---:|
-| impressions | 12 |
-| mean DeltaE76 | 13.992 |
-| p95 DeltaE76 | 36.155 |
-| printability score | 69.66 |
-| production proposal slides | 48 |
-| total carousel slides | 75 |
-
-Interpretation:
-
-- The current build is working mechanically.
-- The new batch proposal is easier to inspect than the old contact sheet.
-- The plate organization is closer to a production-planning abstraction.
-- The image match is still worse than the old 9-pull benchmark.
-- The next solver change should optimize hierarchical batches directly, not
-  merely draw a production proposal after a flat solver has already run.
-
-## Hierarchical Solver Direction
-
-The next serious change should be staged and bounded:
-
-1. Solve the first light-support batch against low-frequency color and luminance.
-2. Freeze or softly constrain that batch.
-3. Solve the second color/depth batch against residual color and regional mass.
-4. Solve detail/key plates against high-frequency residuals.
-5. Run a bounded feedback pass that can adjust early plates only for
-   low-frequency errors inside a trust region.
-
-That keeps the useful hierarchy without allowing every later error to push the
-first support plates into noisy detail masks.
-
-## Tests
-
-Current regression command:
-
-```bash
-PYTHONPATH=. /home/reidsurmeier/src/woodblock-reidsurmeier-wtf/.venv-v23/bin/python -m pytest \
-  backend/tests/v23/stages/test_s3b_cell_graph.py \
-  backend/tests/v23/stages/test_s4_warmstart.py \
-  backend/tests/v23/stages/test_s5_solver.py \
-  backend/tests/v23/stages/test_s6b_jigsaw_organize.py \
-  backend/tests/v23/stages/test_s6c_printability_repair.py \
-  backend/tests/v23/stages/test_s7_block_pack.py \
-  backend/tests/v23/stages/test_orchestrator.py \
-  backend/tests/v23/direct/test_cell_graph_tools.py \
-  backend/tests/v23/direct/test_batch_planning_tools.py \
-  backend/tests/v23/direct/test_d9b_tools.py \
-  backend/tests/v23/unit/test_forward_render_km.py \
-  backend/tests/v23/unit/test_topology_repair.py \
-  -q
-```
-
-Last local result:
-
-```text
-109 passed in 135.22s
-```
-
-## Known Gaps
-
-- Methodology proof states are not CNC-safe plate geometry yet.
-- The proof generator currently creates plausible proof-state previews; it
-  still needs a downstream block-region/vectorization pass.
-- Production batch planning is still a proposal, not a solver-mutating stage.
-- The carousel proposal does not yet optimize batch composites against the
-  target.
-- Early support plates are still too sparse in some runs.
-- Dark/key information can enter the review sequence too early.
-- Actual JAXopt iteration counts are not persisted; telemetry reports the
-  configured profile budget.
-- Calibration still needs real paper/pigment swatch data before color recipes
-  should be trusted for editioning.
-- SVG export should remain gated by printability/topology review.
-
-## License
-
-MIT. Copyright 2026 Reid Surmeier.
+The best next algorithmic work is not more random restarts. It is improving the
+Mask topology before continuous color solving: connected carved regions,
+physical spacing, semantic Underprint scoring, and then better Overprint render
+tiers.

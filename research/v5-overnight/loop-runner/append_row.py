@@ -37,15 +37,12 @@ def main() -> int:
     pnc_agg = pnc.get("aggregate") or {}
     plates_pass_pnc = int(pnc_agg.get("n_pass", 0))
 
-    # validators_passed: count gating validators that pass (out of 5)
+    # validators_passed: count gating validators only (out of 5). final_match
+    # is advisory and is already represented by dE_mean / dE_p95 columns.
     gates = ("plate_not_composite", "role_purity", "jigsaw_separation",
              "proof_progression", "underlayer_reversal")
     vmap = vr.get("validators") or {}
     validators_passed = sum(1 for g in gates if (vmap.get(g) or {}).get("passes"))
-    # add final_match as 6th if passes
-    fm = vmap.get("final_match") or {}
-    if fm.get("passes"):
-        validators_passed += 1
 
     underlayer_match_pct = float(ulm.get("match_pct") or 0.0)
 

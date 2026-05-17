@@ -308,6 +308,42 @@ def _build_frozen_plates_for_stage3(
     return out
 
 
+def _warm_start_frozen_from_solved_plates(
+    solved_plates: List[SolvedPlate],
+    pigment_lookup: Dict[str, tuple[float, float, float]],
+) -> List[FrozenPlate]:
+    """Build Stage-3 inputs from the previous outer iteration's result.
+
+    The outer loop's contract is "re-solve after repair", which means the next
+    iteration must start from the repaired masks and the last continuous
+    pigment/load solution. Rebuilding from Stage 2 every time just replays the
+    same solve.
+    """
+    pigment_choices = [(pid, lab) for pid, lab in pigment_lookup.items()]
+    out: List[FrozenPlate] = []
+    for p in solved_plates:
+        choices = pigment_choices or [
+            (
+                p.pigment_id or "substrate",
+                tuple(p.repair_stats.get("pigment_blend_lab", [50.0, 0.0, 0.0])),
+            )
+        ]
+        out.append(
+            FrozenPlate(
+                block_id=p.block_id,
+                cell_zone_ids=list(p.cell_zone_ids),
+                inked_mask=np.asarray(p.inked_mask).copy(),
+                role=p.role,
+                pigment_choices=choices,
+                pass_index=p.pass_index,
+                initial_opacity=float(p.opacity),
+                initial_dilution=float(p.dilution),
+                pigment_weights=dict(p.pigment_weights),
+            )
+        )
+    return out
+
+
 # ---------------------------------------------------------------------
 # Public dataclass for ProductionPlan input
 # ---------------------------------------------------------------------
@@ -429,35 +465,53 @@ def optimize(
     best_validator_scores: Optional[Dict[str, Any]] = None
     best_delta_e: tuple[float, float] = (float("nan"), float("nan"))
     last_delta_e: Optional[float] = None
+    carryover_frozen: Optional[List[FrozenPlate]] = None
 
     for outer in range(1, max_outer_iters + 1):
         log.info(f"=== Outer iter {outer}/{max_outer_iters} ===")
 
-        # ---- Stage 2: plate assignment
-        t = time.time()
-        try:
-            assignment = assign_cells_to_plates(
-                cell_graph=production_plan.cell_graph,
-                candidate_plates=production_plan.candidate_plates,
-                role_constraints=production_plan.role_constraints,
-                use_graph_cut=False,
-                seed=0xC0FFEE + outer,  # mild randomization between iters
-            )
-        except ValueError as e:
-            notes.append(f"Stage 2 ERROR: {e}")
-            log.error(f"Stage 2 failed: {e}")
-            break
-        stage_timings["stage2_assign"] += time.time() - t
+        if carryover_frozen is None:
+            # ---- Stage 2: plate assignment
+            t = time.time()
+            try:
+                assignment = assign_cells_to_plates(
+                    cell_graph=production_plan.cell_graph,
+                    candidate_plates=production_plan.candidate_plates,
+                    role_constraints=production_plan.role_constraints,
+                    use_graph_cut=False,
+                    seed=0xC0FFEE + outer,  # deterministic first assignment
+                )
+            except ValueError as e:
+                notes.append(f"Stage 2 ERROR: {e}")
+                log.error(f"Stage 2 failed: {e}")
+                break
+            stage_timings["stage2_assign"] += time.time() - t
 
-        # ---- Build FrozenPlates for Stage 3
-        frozen = _build_frozen_plates_for_stage3(
-            production_plan.cell_graph,
-            assignment,
-            production_plan.candidate_plates,
-            target_shape,
-            pigment_lookup,
-            pull_order,
-        )
+            # ---- Build FrozenPlates for Stage 3
+            frozen = _build_frozen_plates_for_stage3(
+                production_plan.cell_graph,
+                assignment,
+                production_plan.candidate_plates,
+                target_shape,
+                pigment_lookup,
+                pull_order,
+            )
+        else:
+            frozen = [
+                FrozenPlate(
+                    block_id=p.block_id,
+                    cell_zone_ids=list(p.cell_zone_ids),
+                    inked_mask=np.asarray(p.inked_mask).copy(),
+                    role=p.role,
+                    pigment_choices=list(p.pigment_choices),
+                    pass_index=p.pass_index,
+                    initial_opacity=float(p.initial_opacity),
+                    initial_dilution=float(p.initial_dilution),
+                    pigment_weights=dict(p.pigment_weights),
+                )
+                for p in carryover_frozen
+            ]
+            notes.append(f"iter {outer}: warm-started from repaired masks")
 
         # ---- Stage 3: JAX continuous solve
         t = time.time()
@@ -566,6 +620,10 @@ def optimize(
                 f"(> {DEGRADE_DELTA_E_THRESHOLD}); re-solving"
             )
         last_delta_e = de_mean
+        carryover_frozen = _warm_start_frozen_from_solved_plates(
+            plates_solved,
+            pigment_lookup,
+        )
 
         if save_artifacts_dir:
             _dump_artifacts(

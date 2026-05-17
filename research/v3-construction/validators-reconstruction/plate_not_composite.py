@@ -107,14 +107,30 @@ def _to_inked_mask(plate_or_mask: np.ndarray, wood_grain_threshold: float = 0.85
     else:
         gray = plate_or_mask.mean(axis=-1)
 
-    # Detect already-binary
-    gray_int = (gray * 10).clip(0, 10).astype(np.int32).ravel()
-    bins = np.bincount(gray_int, minlength=11)
-    if (bins[0] + bins[-1]) / max(bins.sum(), 1) > 0.9:
+    if _looks_binary_mask(gray):
         return (gray > 0.5).astype(np.float32)
 
     # Otherwise: inked = significantly darker than wood
     return (gray < wood_grain_threshold).astype(np.float32)
+
+
+def _looks_binary_mask(gray: np.ndarray) -> bool:
+    """True when an input is already a white-ink/black-background mask."""
+    gray_int = (gray * 10).clip(0, 10).astype(np.int32).ravel()
+    bins = np.bincount(gray_int, minlength=11)
+    return (bins[0] + bins[-1]) / max(bins.sum(), 1) > 0.9
+
+
+def _resize_gray_to_shape(img: np.ndarray, shape: tuple[int, int]) -> np.ndarray:
+    """Resize a normalized grayscale image to `shape` using bilinear sampling."""
+    if img.shape == shape:
+        return img
+    pil = Image.fromarray((img * 255).clip(0, 255).astype(np.uint8))
+    pil = pil.resize((shape[1], shape[0]), Image.BILINEAR)
+    out = np.asarray(pil).astype(np.float32)
+    if out.max() > 1.5:
+        out = out / 255.0
+    return out
 
 
 def _cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
@@ -176,17 +192,24 @@ def score(
     plate_lum = plate_small.mean(axis=-1) if plate_small.ndim == 3 else plate_small
     final_lum = final_small.mean(axis=-1) if final_small.ndim == 3 else final_small
 
-    # Invert so dark inked regions are "high signal" for cosine
-    plate_signal = 1.0 - plate_lum
-    final_signal = 1.0 - final_lum
-
-    cos_sim = _cosine_similarity(plate_signal, final_signal)
-    cos_sim = max(0.0, cos_sim)  # negative similarity not meaningful here
-
     # Use downsampled plate for the inked-area calc too -- the absolute
     # fraction is preserved under uniform downsampling and we save
     # 50-100x on a 1133x1400 plate vs full-res.
     inked = _to_inked_mask(plate_small)
+
+    # In a binary validator mask, white is the printed area. In a wood-grain
+    # preview, darker pixels are the printed area. Treat those separately so
+    # a correct white-ink mask is not scored as "full background signal."
+    if _looks_binary_mask(plate_lum):
+        plate_signal = inked
+    else:
+        plate_signal = 1.0 - plate_lum
+    final_signal = 1.0 - final_lum
+    final_signal = _resize_gray_to_shape(final_signal, plate_signal.shape)
+
+    cos_sim = _cosine_similarity(plate_signal, final_signal)
+    cos_sim = max(0.0, cos_sim)  # negative similarity not meaningful here
+
     concentration_badness = _coverage_concentration(inked)
 
     # Higher = worse. Both 0..1.

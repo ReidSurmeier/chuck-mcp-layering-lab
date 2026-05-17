@@ -45,6 +45,7 @@ from hybrid_optimizer import (  # noqa: E402
     repair_plates,
     solve_pigment_load,
 )
+import hybrid_optimizer.alternating_loop as alternating_loop  # noqa: E402
 from hybrid_optimizer.jax_continuous_solve import _rgb_to_lab_np  # noqa: E402
 
 
@@ -356,6 +357,66 @@ def test_stage5_re_solves_on_validator_failure(tmp_path):
     )
     assert result.outer_iter_count == 3
     assert len(result.history) == 3
+
+
+def test_outer_loop_warm_starts_from_previous_repaired_solution(monkeypatch):
+    """Outer iter 2 must not restart from fixed Stage-2 opacity/dilution."""
+    target, plan = _full_synthetic_plan(n_cells=8, per_role=1, H=32, W=32)
+    seen_initial_opacity: list[list[float]] = []
+
+    def fake_solve_pigment_load(plates, target_lab, substrate_lab=None, max_iters=200, tol=1e-4):
+        seen_initial_opacity.append([float(p.initial_opacity) for p in plates])
+        per_plate = {}
+        for p in plates:
+            pigment_id, pigment_lab = p.pigment_choices[0]
+            per_plate[p.block_id] = {
+                "opacity": min(float(p.initial_opacity) + 0.17, 0.95),
+                "dilution": float(p.initial_dilution),
+                "pigment_weights": {pigment_id: 1.0},
+                "pigment_blend_lab": list(pigment_lab),
+                "pigment_id": pigment_id,
+            }
+        return alternating_loop.SolveResult(
+            per_plate=per_plate,
+            loss_initial=100.0 - len(seen_initial_opacity),
+            loss_final=90.0 - len(seen_initial_opacity),
+            n_iterations=1,
+            converged=True,
+        )
+
+    def fake_repair_plates(plates, mill_radius_px):
+        return plates, []
+
+    def fake_run_validators(**kwargs):
+        return {
+            "plate_not_composite": {"passes": False},
+            "role_purity": {"passes": False},
+            "jigsaw_separation": {"passes": False},
+            "proof_progression": {"passes": False},
+            "underlayer_reversal": {"passes": False},
+            "final_match": {
+                "advisory_passes": False,
+                "delta_e_mean": 99.0,
+                "delta_e_p95": 120.0,
+            },
+        }
+
+    monkeypatch.setattr(alternating_loop, "solve_pigment_load", fake_solve_pigment_load)
+    monkeypatch.setattr(alternating_loop, "repair_plates", fake_repair_plates)
+    monkeypatch.setattr(alternating_loop, "_run_validators", fake_run_validators)
+
+    result = alternating_loop.optimize(
+        target,
+        plan,
+        max_outer_iters=2,
+        max_inner_iters=1,
+        early_stop_on_gates=False,
+    )
+
+    assert result.outer_iter_count == 2
+    assert len(seen_initial_opacity) == 2
+    assert all(abs(v - 0.45) < 1e-6 for v in seen_initial_opacity[0])
+    assert any(v > 0.45 for v in seen_initial_opacity[1])
 
 
 def test_max_outer_iters_terminates_loop():

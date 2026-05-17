@@ -15,7 +15,7 @@ M_PRIOR=26
 MAX_ITERS=12
 ACCEPT_DE=8.0
 ACCEPT_UNDERLAYER=85.0
-ACCEPT_VALIDATORS=6
+ACCEPT_VALIDATORS=5
 
 # track best-so-far and convergence
 BEST_DE=99999
@@ -45,6 +45,8 @@ for i in $(seq 1 "$MAX_ITERS"); do
   ROW=$(tail -n1 "$WORKDIR/iterations.csv")
   echo "row: $ROW"
   # fields: iter_n,wall_s,plate_count,plates_pass_pnc,dE_mean,dE_p95,validators_passed,underlayer_match_pct,sheet_path,notes
+  # validators_passed counts the 5 gating validators; final_match is advisory
+  # and is enforced here through ACCEPT_DE.
   DE=$(echo "$ROW" | awk -F, '{print $5}')
   VAL=$(echo "$ROW" | awk -F, '{print $7}')
   ULM=$(echo "$ROW" | awk -F, '{print $8}')
@@ -60,7 +62,7 @@ for i in $(seq 1 "$MAX_ITERS"); do
   # commit progress
   cd "$REPO"
   git add research/v5-overnight/loop-runner/iterations.csv research/v5-overnight/loop-runner/*.log 2>/dev/null
-  git commit -m "v5 overnight iter $ITER: dE $DE, validators $VAL/6, underlayer ${ULM}%" 2>&1 | tail -3 || true
+  git commit -m "v5 overnight iter $ITER: dE $DE, validators $VAL/5, underlayer ${ULM}%" 2>&1 | tail -3 || true
   git push origin main 2>&1 | tail -3 || true
 
   # acceptance check

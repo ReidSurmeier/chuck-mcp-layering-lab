@@ -17,8 +17,8 @@ Plan input shape (dict, kwargs-style):
                 "cells_in_plate": [12, 34, 56, ...],       # cell ids on this plate
                 "role": "underlayer_light",                # validated against allowed
                 "dpi": 300,                                # physical resolution
-                # OPTIONAL — for zone-distance check on rendered mask:
-                "inked_mask": numpy 2-D array,
+                # OPTIONAL — authoritative printed-area mask for validators:
+                "inked_mask": numpy 2-D array or path to mask PNG,
             },
             ...27 entries...
         ],
@@ -98,6 +98,41 @@ def _safe_call(fn, *args, **kwargs):
         return {"passes": False, "error": f"{type(e).__name__}: {e}"}
 
 
+def _first_present(mapping: dict, keys: tuple[str, ...]) -> tuple[str | None, Any]:
+    """Return the first non-None mapping value without truth-testing arrays."""
+    for key in keys:
+        if key in mapping and mapping[key] is not None:
+            return key, mapping[key]
+    return None, None
+
+
+def _load_mask_input(mask: Any) -> Any:
+    """Load a JSON-friendly mask path into a normalized 2-D array.
+
+    Review previews are RGB/wood-grain images. Validator truth should come
+    from a physical printed-area mask: white=ink, black=background. JSON plans
+    can only carry paths, so accept either a path or an already-loaded array.
+    """
+    if mask is None:
+        return None
+    if isinstance(mask, np.ndarray):
+        arr = mask
+    else:
+        try:
+            from PIL import Image as _PIL
+
+            arr = np.asarray(_PIL.open(mask).convert("L"))
+        except Exception:
+            return mask
+
+    arr = arr.astype(np.float32)
+    if arr.max() > 1.5:
+        arr = arr / 255.0
+    if arr.ndim == 3:
+        arr = arr.mean(axis=-1)
+    return np.clip(arr, 0.0, 1.0)
+
+
 def run_all_validators(
     plan: dict,
     output_path: Optional[str] = None,
@@ -142,15 +177,25 @@ def run_all_validators(
 
         for p in plates:
             block_id = p.get("block_id")
-            plate_img = p.get("plate_preview")
+            source_key, plate_img = _first_present(
+                p,
+                ("inked_mask", "plate_mask", "alpha_preview", "plate_preview"),
+            )
             if plate_img is None:
-                pnc_results.append({"block_id": block_id, "error": "no plate_preview", "passes": False})
+                pnc_results.append({
+                    "block_id": block_id,
+                    "error": "no inked_mask/plate_preview",
+                    "passes": False,
+                })
                 continue
+            if source_key in {"inked_mask", "plate_mask", "alpha_preview"}:
+                plate_img = _load_mask_input(plate_img)
             r = _safe_call(
                 plate_not_composite.score,
                 plate_img, _final_cached, return_components=True,
             )
             r["block_id"] = block_id
+            r["input_source"] = source_key
             pnc_results.append(r)
         n_pass = sum(1 for r in pnc_results if r.get("passes"))
         worst = max(pnc_results, key=lambda x: x.get("badness_score", 0.0), default=None)
@@ -195,6 +240,7 @@ def run_all_validators(
         dpi = p.get("dpi", jigsaw_separation.DEFAULT_DPI)
         mask = p.get("inked_mask")
         if mask is not None:
+            mask = _load_mask_input(mask)
             r = _safe_call(
                 jigsaw_separation.score_from_mask, mask, dpi, return_components=True
             )
