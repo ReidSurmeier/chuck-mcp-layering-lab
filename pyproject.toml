@@ -21,12 +21,13 @@ dependencies = [
     "Pillow>=10.0",
     "filelock>=3.13",
     "python-ulid>=2.7",
+    "PyYAML>=6.0",
 ]
 
 [project.optional-dependencies]
 mcp = ["fastmcp>=2.0"]
 solver = ["jax[cuda13]>=0.10.0", "jaxopt>=0.8", "mixbox>=2.0", "colour-science>=0.4.4"]
-io = ["opencv-contrib-python>=4.10", "scikit-image>=0.24"]
+io = ["opencv-contrib-python>=4.10", "scikit-image>=0.24", "shapely>=2.0"]
 dev = ["pytest>=8.0", "pytest-asyncio>=0.23", "mypy>=1.10", "ruff>=0.5"]
 
 [project.scripts]
