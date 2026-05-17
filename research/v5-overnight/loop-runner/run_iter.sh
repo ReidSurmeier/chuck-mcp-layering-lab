@@ -39,6 +39,8 @@ case "$PROFILE" in
   finer-cells)     OUTER=3; INNER=25; PLATE_COUNT=20; CELLS=192 ;;
   more-plates)     OUTER=3; INNER=25; PLATE_COUNT=28; CELLS=96 ;;
   finer-more)      OUTER=3; INNER=25; PLATE_COUNT=28; CELLS=192 ;;
+  extreme-cells)   OUTER=3; INNER=25; PLATE_COUNT=28; CELLS=288 ;;
+  max-cells)       OUTER=3; INNER=25; PLATE_COUNT=32; CELLS=384 ;;
   deeper-inner)    OUTER=3; INNER=50; PLATE_COUNT=20; CELLS=96 ;;
   bigger-canvas)   OUTER=3; INNER=25; PLATE_COUNT=20; CELLS=96 ;;  # uses --size override below
   *)               OUTER=2; INNER=15; PLATE_COUNT=20; CELLS=96 ;;
