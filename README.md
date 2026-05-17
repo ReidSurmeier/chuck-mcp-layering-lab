@@ -198,6 +198,8 @@ Because this clone also has an `upstream` remote, pass
 
 Useful docs:
 
+- `research/v6-methodology-reset/README.md`
+- `research/v6-methodology-reset/VISUAL_BASELINE_REJECTION.md`
 - `docs/diagnosis/2026-05-17-v5-validator-and-outer-loop.md`
 - `docs/architecture/deepening-opportunities-2026-05-17.md`
 - `docs/audit-response-and-reconstruction-plan-2026-05-17.md`
@@ -207,3 +209,20 @@ The best next algorithmic work is not more random restarts. It is improving the
 Mask topology before continuous color solving: connected carved regions,
 physical spacing, semantic Underprint scoring, and then better Overprint render
 tiers.
+
+## v6 Reset
+
+`sheet_iter_13.png` is now treated as a known visual-methodology failure, not a
+quality baseline. The v6 reset starts from:
+
+```text
+research/v6-methodology-reset/
+```
+
+Run the failing gate:
+
+```bash
+.venv-renderer/bin/python research/v6-methodology-reset/visual_methodology_gate.py \
+  --artifacts-dir /home/reidsurmeier/cnc-carving-jobs/emma-overnight-iter-13/artifacts \
+  --output research/v6-methodology-reset/reports/iter13_methodology_gate.json
+```

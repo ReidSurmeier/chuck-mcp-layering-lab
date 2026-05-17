@@ -1,0 +1,71 @@
+{
+  "passes": false,
+  "verdict": "FAIL",
+  "gates": {
+    "final_coverage_floor": {
+      "passes": true,
+      "current_vs_reference_ratio": 0.947852591292996,
+      "threshold": 0.55,
+      "current_active_fraction": 0.4674856582125604,
+      "reference_active_fraction": 0.4932050220750552
+    },
+    "reference_silhouette_overlap": {
+      "passes": true,
+      "iou": 0.4570116206030151,
+      "threshold": 0.35
+    },
+    "dot_cell_artifact_rejection": {
+      "passes": false,
+      "dot_artifact_score": 0.45833333333333337,
+      "threshold": 0.45,
+      "dot_like_fraction": 0.8333333333333334,
+      "component_area_cv": 2.227402448654175
+    },
+    "final_edge_complexity_floor": {
+      "passes": true,
+      "current_vs_reference_ratio": 0.783076012610642,
+      "threshold": 0.45,
+      "current_edge_density": 0.09905268719806763,
+      "reference_edge_density": 0.1264917908388521
+    },
+    "alpha_mask_dot_cell_rejection": {
+      "passes": false,
+      "mean_dot_artifact_score": 0.42866924812041585,
+      "threshold": 0.4,
+      "mean_dot_like_fraction": 0.20773809523809522,
+      "mask_count": 28.0
+    },
+    "alpha_mask_connected_region_floor": {
+      "passes": true,
+      "mean_largest_component_fraction": 0.6189636457769152,
+      "threshold": 0.35,
+      "mask_count": 28.0
+    }
+  },
+  "reference_final": {
+    "active_fraction": 0.4932050220750552,
+    "component_count": 10,
+    "median_component_area": 27.0,
+    "component_area_cv": 2.9653847217559814,
+    "dot_like_fraction": 0.7,
+    "edge_density": 0.1264917908388521
+  },
+  "current_final": {
+    "active_fraction": 0.4674856582125604,
+    "component_count": 6,
+    "median_component_area": 16.0,
+    "component_area_cv": 2.227402448654175,
+    "dot_like_fraction": 0.8333333333333334,
+    "edge_density": 0.09905268719806763
+  },
+  "alpha_mask_summary": {
+    "mask_count": 28.0,
+    "mean_dot_artifact_score": 0.42866924812041585,
+    "mean_dot_like_fraction": 0.20773809523809522,
+    "mean_largest_component_fraction": 0.6189636457769152
+  },
+  "notes": [
+    "current proof reads as dot/cell centroid artifacts",
+    "individual masks read as dot/cell centroid artifacts"
+  ]
+}

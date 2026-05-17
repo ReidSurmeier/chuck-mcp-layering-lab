@@ -74,6 +74,10 @@ _Avoid_: using previews as validator input.
 The physical object a validator is meant to score: **Mask** geometry, **Block** assignment, **Impression** order, proof state, or final composite. Geometry validators must prefer the authoritative **Mask** over a **Review preview**. A wood-grain block preview is not a **Mask**.
 _Avoid_: scoring layout/contact-sheet pixels as if they were print data.
 
+**Methodology gate**:
+A visual and structural acceptance check that compares a run's progressive proof sequence and **Mask** topology against the Chuck Close / mokuhanga reference methodology. It rejects dot-cell or incoherent proof buildup even if numeric validators improve.
+_Avoid_: treating dE, validator count, or GPU execution as methodology success.
+
 ## Relationships
 
 - A **Plan** is one **Stack** + supporting metadata.
@@ -106,3 +110,4 @@ _Avoid_: scoring layout/contact-sheet pixels as if they were print data.
 - "Overlay" — overloaded between print-on-print (mokuhanga) and GUI compositing (alpha). Use **Overprint** for the print event; reserve "overlay" only for UI compositing layers.
 - "Preview" — overloaded between visual review and physical geometry. Use **Review preview** for human images and **Mask** / **Validator truth** for the data that gates acceptance.
 - "Solved image" — overloaded. V1 accepts a plausible print plan with measured final-match telemetry; it does not promise dE < 8 until overprint calibration and topology are mature.
+- "Validator pass" — not enough by itself. A run that passes lower-level geometry gates can still fail the **Methodology gate** if the proof sequence does not visually resemble a plausible woodblock process.
