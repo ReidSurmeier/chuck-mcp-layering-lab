@@ -43,6 +43,20 @@ Expected result:
 FAIL
 ```
 
+Render the self-portrait methodology benchmark sheet after a run:
+
+```bash
+.venv-renderer/bin/python research/v6-methodology-reset/selfportrait_benchmark_sheet.py \
+  --job-dir /home/reidsurmeier/cnc-carving-jobs/selfportrait-v6-iter-02 \
+  --reference-dir /srv/woodblock-share/plotter-separation/close-self-portrait-2001 \
+  --output /srv/woodblock-share/chuck-mcp-iterations/current-review/2026-05-17_v6-selfportrait-benchmark-iter-02/contact_sheet.png
+```
+
+This sheet is the current visual starting point: reference proofs, model proofs,
+reference blocks, and model blocks are aligned column-by-column on a white
+review background. It makes the known failure visible: the current solver still
+builds sparse dot/cell accumulation rather than dense progressive ink mass.
+
 ## Next Build
 
 Do not continue the dot-cell path. The next implementation should generate
