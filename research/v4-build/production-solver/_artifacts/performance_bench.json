@@ -1,0 +1,15 @@
+{
+  "emma_class": {
+    "n_cells": 2200,
+    "build_seconds": 0.16115784645080566,
+    "plate_count": 35,
+    "total_pulls": 144,
+    "under_5s_target": true
+  },
+  "default_test": {
+    "n_cells": 1800,
+    "build_seconds": 0.1173553466796875,
+    "plate_count": 35,
+    "total_pulls": 144
+  }
+}

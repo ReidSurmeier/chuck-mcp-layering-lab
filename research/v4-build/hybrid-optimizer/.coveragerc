@@ -1,0 +1,13 @@
+[run]
+omit =
+    run_synthetic_emma_demo.py
+    test_*.py
+    conftest.py
+
+[report]
+exclude_lines =
+    pragma: no cover
+    if __name__ == .__main__.:
+    raise NotImplementedError
+    if not _HAS_JAX
+    except ImportError

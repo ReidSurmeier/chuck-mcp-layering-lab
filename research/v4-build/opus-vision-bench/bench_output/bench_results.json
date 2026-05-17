@@ -1,0 +1,2108 @@
+{
+  "generated_at": "2026-05-17T02:52:49.972992+00:00",
+  "dry_run": false,
+  "n_images_scored": 9,
+  "n_images_skipped": 1,
+  "skipped": [
+    {
+      "image_id": "synth_face_00",
+      "error": "claude -p failed after 83.2s: ClaudePInvocationError: claude -p exited 1; stderr=''"
+    }
+  ],
+  "cost_usd_total": 5.50762995,
+  "latency_summary_ms": {
+    "median_ms": 52372,
+    "min_ms": 45862,
+    "max_ms": 78104,
+    "n": 9
+  },
+  "extraction_records": [
+    {
+      "image_id": "close_emma_2002",
+      "n_cells": 204,
+      "n_regions": 19,
+      "overlay_path": "bench_output/ground_truth/close_emma_2002/input_overlay.png",
+      "mean_jaccard": 0.04071620963734425,
+      "median_jaccard": 0.0,
+      "min_jaccard": 0.0,
+      "mean_f1": 0.06885487615085487,
+      "cost_usd": 0.7113336500000002,
+      "duration_ms": 52372,
+      "session_id": "27e9c2b2-2ff2-42c9-ae8e-fc52a1977631"
+    },
+    {
+      "image_id": "reid_mike_portrait",
+      "n_cells": 509,
+      "n_regions": 19,
+      "overlay_path": "bench_output/ground_truth/reid_mike_portrait/input_overlay.png",
+      "mean_jaccard": 0.0,
+      "median_jaccard": 0.0,
+      "min_jaccard": 0.0,
+      "mean_f1": 0.0,
+      "cost_usd": 0.5595914000000001,
+      "duration_ms": 49433,
+      "session_id": "5bf47569-d79d-49b7-84d9-3f5289751036"
+    },
+    {
+      "image_id": "reid_untitled_01",
+      "n_cells": 462,
+      "n_regions": 11,
+      "overlay_path": "bench_output/ground_truth/reid_untitled_01/input_overlay.png",
+      "mean_jaccard": 0.10565509052351157,
+      "median_jaccard": 0.05263157894736842,
+      "min_jaccard": 0.0,
+      "mean_f1": 0.16596121170870398,
+      "cost_usd": 0.77210115,
+      "duration_ms": 78104,
+      "session_id": "87f9d2d5-3b75-4bf4-bf38-f9ef5b7377d0"
+    },
+    {
+      "image_id": "reid_untitled_02",
+      "n_cells": 181,
+      "n_regions": 11,
+      "overlay_path": "bench_output/ground_truth/reid_untitled_02/input_overlay.png",
+      "mean_jaccard": 0.0,
+      "median_jaccard": 0.0,
+      "min_jaccard": 0.0,
+      "mean_f1": 0.0,
+      "cost_usd": 0.5660931,
+      "duration_ms": 45862,
+      "session_id": "9b068b7f-e3d5-480a-86f8-29a53e2fd3fa"
+    },
+    {
+      "image_id": "toy_print_face_masks",
+      "n_cells": 415,
+      "n_regions": 19,
+      "overlay_path": "bench_output/ground_truth/toy_print_face_masks/input_overlay.png",
+      "mean_jaccard": 0.0,
+      "median_jaccard": 0.0,
+      "min_jaccard": 0.0,
+      "mean_f1": 0.0,
+      "cost_usd": 0.5747862,
+      "duration_ms": 50509,
+      "session_id": "75964bfa-5918-46f5-9d56-bec1ccdd6a85"
+    },
+    {
+      "image_id": "synth_face_01",
+      "n_cells": 503,
+      "n_regions": 19,
+      "overlay_path": "bench_output/ground_truth/synth_face_01/input_overlay.png",
+      "mean_jaccard": 0.0,
+      "median_jaccard": 0.0,
+      "min_jaccard": 0.0,
+      "mean_f1": 0.0,
+      "cost_usd": 0.56153905,
+      "duration_ms": 48154,
+      "session_id": "66ba4680-c3f6-41fd-a13d-c9f558ea7299"
+    },
+    {
+      "image_id": "synth_face_02",
+      "n_cells": 494,
+      "n_regions": 19,
+      "overlay_path": "bench_output/ground_truth/synth_face_02/input_overlay.png",
+      "mean_jaccard": 0.05296056848214017,
+      "median_jaccard": 0.0,
+      "min_jaccard": 0.0,
+      "mean_f1": 0.08439470216039181,
+      "cost_usd": 0.5481679,
+      "duration_ms": 54809,
+      "session_id": "656e3f3c-cd30-421b-b976-1e3ac207f0fa"
+    },
+    {
+      "image_id": "synth_face_03",
+      "n_cells": 476,
+      "n_regions": 19,
+      "overlay_path": "bench_output/ground_truth/synth_face_03/input_overlay.png",
+      "mean_jaccard": 0.0,
+      "median_jaccard": 0.0,
+      "min_jaccard": 0.0,
+      "mean_f1": 0.0,
+      "cost_usd": 0.6028788,
+      "duration_ms": 52954,
+      "session_id": "1051af02-d916-4534-b7d9-9d6e7f7d5be9"
+    },
+    {
+      "image_id": "synth_face_04",
+      "n_cells": 481,
+      "n_regions": 19,
+      "overlay_path": "bench_output/ground_truth/synth_face_04/input_overlay.png",
+      "mean_jaccard": 0.04039872197485993,
+      "median_jaccard": 0.0,
+      "min_jaccard": 0.0,
+      "mean_f1": 0.06629270678564674,
+      "cost_usd": 0.6111386999999999,
+      "duration_ms": 52633,
+      "session_id": "65fcd565-10a9-4db4-8a7f-4e5952375a81"
+    }
+  ],
+  "bench": {
+    "n_images": 9,
+    "overall_mean_jaccard": 0.02663673229087288,
+    "overall_median_jaccard": 0.0,
+    "overall_min_jaccard": 0.0,
+    "overall_mean_f1": 0.04283372186728859,
+    "per_image_mean_jaccard": {
+      "close_emma_2002": 0.04071620963734425,
+      "reid_mike_portrait": 0.0,
+      "reid_untitled_01": 0.10565509052351157,
+      "reid_untitled_02": 0.0,
+      "toy_print_face_masks": 0.0,
+      "synth_face_01": 0.0,
+      "synth_face_02": 0.05296056848214017,
+      "synth_face_03": 0.0,
+      "synth_face_04": 0.04039872197485993
+    },
+    "per_region_summary": {
+      "background": {
+        "mean": 0.1239202449940584,
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.46130952380952384,
+        "n": 9
+      },
+      "chin": {
+        "mean": 0.0,
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "n": 7
+      },
+      "face": {
+        "mean": 0.08180299232930811,
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.3,
+        "n": 9
+      },
+      "forehead": {
+        "mean": 0.0522995522995523,
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.2564102564102564,
+        "n": 9
+      },
+      "hair": {
+        "mean": 0.07865341500827282,
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.34146341463414637,
+        "n": 9
+      },
+      "left_cheek": {
+        "mean": 0.030083220872694556,
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.1111111111111111,
+        "n": 8
+      },
+      "left_eye": {
+        "mean": 0.0,
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "n": 5
+      },
+      "left_eyebrow": {
+        "mean": 0.0,
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "n": 5
+      },
+      "left_jaw": {
+        "mean": 0.0,
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "n": 6
+      },
+      "left_temple": {
+        "mean": 0.0,
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "n": 6
+      },
+      "lips": {
+        "mean": 0.0,
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "n": 8
+      },
+      "lower_lip": {
+        "mean": 0.0,
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "n": 5
+      },
+      "nose": {
+        "mean": 0.026719576719576716,
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.10714285714285714,
+        "n": 9
+      },
+      "right_cheek": {
+        "mean": 0.006944444444444444,
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.05555555555555555,
+        "n": 8
+      },
+      "right_eye": {
+        "mean": 0.0,
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "n": 5
+      },
+      "right_eyebrow": {
+        "mean": 0.0,
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "n": 5
+      },
+      "right_jaw": {
+        "mean": 0.0,
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "n": 6
+      },
+      "right_temple": {
+        "mean": 0.023809523809523808,
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.14285714285714285,
+        "n": 6
+      },
+      "upper_lip": {
+        "mean": 0.0,
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "n": 3
+      }
+    },
+    "per_image_detail": [
+      {
+        "image_id": "close_emma_2002",
+        "mean_jaccard": 0.04071620963734425,
+        "median_jaccard": 0.0,
+        "min_jaccard": 0.0,
+        "mean_f1": 0.06885487615085487,
+        "regions": [
+          {
+            "region": "background",
+            "jaccard": 0.2336448598130841,
+            "precision": 0.43859649122807015,
+            "recall": 0.3333333333333333,
+            "f1": 0.3787878787878788,
+            "n_pred": 57,
+            "n_truth": 75,
+            "n_intersect": 25,
+            "is_trivial": false
+          },
+          {
+            "region": "chin",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 6,
+            "n_truth": 1,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "face",
+            "jaccard": 0.24675324675324675,
+            "precision": 0.3275862068965517,
+            "recall": 0.5,
+            "f1": 0.3958333333333333,
+            "n_pred": 58,
+            "n_truth": 38,
+            "n_intersect": 19,
+            "is_trivial": false
+          },
+          {
+            "region": "forehead",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 22,
+            "n_truth": 10,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "hair",
+            "jaccard": 0.09876543209876543,
+            "precision": 0.4444444444444444,
+            "recall": 0.11267605633802817,
+            "f1": 0.17977528089887643,
+            "n_pred": 18,
+            "n_truth": 71,
+            "n_intersect": 8,
+            "is_trivial": false
+          },
+          {
+            "region": "left_cheek",
+            "jaccard": 0.1111111111111111,
+            "precision": 0.125,
+            "recall": 0.5,
+            "f1": 0.2,
+            "n_pred": 8,
+            "n_truth": 2,
+            "n_intersect": 1,
+            "is_trivial": false
+          },
+          {
+            "region": "left_eye",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 2,
+            "n_truth": 0,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "left_eyebrow",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 3,
+            "n_truth": 0,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "left_jaw",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 2,
+            "n_truth": 0,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "left_temple",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 3,
+            "n_truth": 1,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "lips",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 10,
+            "n_truth": 1,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "lower_lip",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 6,
+            "n_truth": 0,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "nose",
+            "jaccard": 0.08333333333333333,
+            "precision": 0.08333333333333333,
+            "recall": 1.0,
+            "f1": 0.15384615384615385,
+            "n_pred": 12,
+            "n_truth": 1,
+            "n_intersect": 1,
+            "is_trivial": false
+          },
+          {
+            "region": "right_cheek",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 9,
+            "n_truth": 5,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "right_eye",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 1,
+            "n_truth": 0,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "right_eyebrow",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 2,
+            "n_truth": 0,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "right_jaw",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 2,
+            "n_truth": 0,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "right_temple",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 23,
+            "n_truth": 1,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "upper_lip",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 4,
+            "n_truth": 0,
+            "n_intersect": 0,
+            "is_trivial": false
+          }
+        ]
+      },
+      {
+        "image_id": "reid_mike_portrait",
+        "mean_jaccard": 0.0,
+        "median_jaccard": 0.0,
+        "min_jaccard": 0.0,
+        "mean_f1": 0.0,
+        "regions": [
+          {
+            "region": "background",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 0,
+            "n_truth": 198,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "chin",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 0,
+            "n_truth": 1,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "face",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 0,
+            "n_truth": 24,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "forehead",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 0,
+            "n_truth": 4,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "hair",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 0,
+            "n_truth": 25,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "left_cheek",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 0,
+            "n_truth": 3,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "left_eye",
+            "jaccard": 1.0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "n_pred": 0,
+            "n_truth": 0,
+            "n_intersect": 0,
+            "is_trivial": true
+          },
+          {
+            "region": "left_eyebrow",
+            "jaccard": 1.0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "n_pred": 0,
+            "n_truth": 0,
+            "n_intersect": 0,
+            "is_trivial": true
+          },
+          {
+            "region": "left_jaw",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 0,
+            "n_truth": 3,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "left_temple",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 0,
+            "n_truth": 2,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "lips",
+            "jaccard": 1.0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "n_pred": 0,
+            "n_truth": 0,
+            "n_intersect": 0,
+            "is_trivial": true
+          },
+          {
+            "region": "lower_lip",
+            "jaccard": 1.0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "n_pred": 0,
+            "n_truth": 0,
+            "n_intersect": 0,
+            "is_trivial": true
+          },
+          {
+            "region": "nose",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 0,
+            "n_truth": 2,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "right_cheek",
+            "jaccard": 1.0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "n_pred": 0,
+            "n_truth": 0,
+            "n_intersect": 0,
+            "is_trivial": true
+          },
+          {
+            "region": "right_eye",
+            "jaccard": 1.0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "n_pred": 0,
+            "n_truth": 0,
+            "n_intersect": 0,
+            "is_trivial": true
+          },
+          {
+            "region": "right_eyebrow",
+            "jaccard": 1.0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "n_pred": 0,
+            "n_truth": 0,
+            "n_intersect": 0,
+            "is_trivial": true
+          },
+          {
+            "region": "right_jaw",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 0,
+            "n_truth": 1,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "right_temple",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 0,
+            "n_truth": 2,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "upper_lip",
+            "jaccard": 1.0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "n_pred": 0,
+            "n_truth": 0,
+            "n_intersect": 0,
+            "is_trivial": true
+          }
+        ]
+      },
+      {
+        "image_id": "reid_untitled_01",
+        "mean_jaccard": 0.10565509052351157,
+        "median_jaccard": 0.05263157894736842,
+        "min_jaccard": 0.0,
+        "mean_f1": 0.16596121170870398,
+        "regions": [
+          {
+            "region": "background",
+            "jaccard": 0.46130952380952384,
+            "precision": 0.6739130434782609,
+            "recall": 0.5938697318007663,
+            "f1": 0.6313645621181263,
+            "n_pred": 230,
+            "n_truth": 261,
+            "n_intersect": 155,
+            "is_trivial": false
+          },
+          {
+            "region": "chin",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 28,
+            "n_truth": 8,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "face",
+            "jaccard": 0.18947368421052632,
+            "precision": 0.48,
+            "recall": 0.23841059602649006,
+            "f1": 0.3185840707964602,
+            "n_pred": 75,
+            "n_truth": 151,
+            "n_intersect": 36,
+            "is_trivial": false
+          },
+          {
+            "region": "forehead",
+            "jaccard": 0.2564102564102564,
+            "precision": 0.3333333333333333,
+            "recall": 0.5263157894736842,
+            "f1": 0.4081632653061224,
+            "n_pred": 30,
+            "n_truth": 19,
+            "n_intersect": 10,
+            "is_trivial": false
+          },
+          {
+            "region": "hair",
+            "jaccard": 0.09523809523809523,
+            "precision": 0.3157894736842105,
+            "recall": 0.12,
+            "f1": 0.17391304347826086,
+            "n_pred": 19,
+            "n_truth": 50,
+            "n_intersect": 6,
+            "is_trivial": false
+          },
+          {
+            "region": "left_cheek",
+            "jaccard": 0.05263157894736842,
+            "precision": 0.06451612903225806,
+            "recall": 0.2222222222222222,
+            "f1": 0.09999999999999999,
+            "n_pred": 31,
+            "n_truth": 9,
+            "n_intersect": 2,
+            "is_trivial": false
+          },
+          {
+            "region": "left_eye",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 11,
+            "n_truth": 4,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "lips",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 10,
+            "n_truth": 7,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "nose",
+            "jaccard": 0.10714285714285714,
+            "precision": 0.15789473684210525,
+            "recall": 0.25,
+            "f1": 0.1935483870967742,
+            "n_pred": 19,
+            "n_truth": 12,
+            "n_intersect": 3,
+            "is_trivial": false
+          },
+          {
+            "region": "right_cheek",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 9,
+            "n_truth": 17,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "right_eye",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 6,
+            "n_truth": 7,
+            "n_intersect": 0,
+            "is_trivial": false
+          }
+        ]
+      },
+      {
+        "image_id": "reid_untitled_02",
+        "mean_jaccard": 0.0,
+        "median_jaccard": 0.0,
+        "min_jaccard": 0.0,
+        "mean_f1": 0.0,
+        "regions": [
+          {
+            "region": "background",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 0,
+            "n_truth": 119,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "chin",
+            "jaccard": 1.0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "n_pred": 0,
+            "n_truth": 0,
+            "n_intersect": 0,
+            "is_trivial": true
+          },
+          {
+            "region": "face",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 0,
+            "n_truth": 41,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "forehead",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 0,
+            "n_truth": 5,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "hair",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 0,
+            "n_truth": 20,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "left_cheek",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 0,
+            "n_truth": 5,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "left_eye",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 0,
+            "n_truth": 1,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "lips",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 0,
+            "n_truth": 2,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "nose",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 0,
+            "n_truth": 3,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "right_cheek",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 0,
+            "n_truth": 3,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "right_eye",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 0,
+            "n_truth": 2,
+            "n_intersect": 0,
+            "is_trivial": false
+          }
+        ]
+      },
+      {
+        "image_id": "toy_print_face_masks",
+        "mean_jaccard": 0.0,
+        "median_jaccard": 0.0,
+        "min_jaccard": 0.0,
+        "mean_f1": 0.0,
+        "regions": [
+          {
+            "region": "background",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 0,
+            "n_truth": 378,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "chin",
+            "jaccard": 1.0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "n_pred": 0,
+            "n_truth": 0,
+            "n_intersect": 0,
+            "is_trivial": true
+          },
+          {
+            "region": "face",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 0,
+            "n_truth": 14,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "forehead",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 0,
+            "n_truth": 2,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "hair",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 0,
+            "n_truth": 23,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "left_cheek",
+            "jaccard": 1.0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "n_pred": 0,
+            "n_truth": 0,
+            "n_intersect": 0,
+            "is_trivial": true
+          },
+          {
+            "region": "left_eye",
+            "jaccard": 1.0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "n_pred": 0,
+            "n_truth": 0,
+            "n_intersect": 0,
+            "is_trivial": true
+          },
+          {
+            "region": "left_eyebrow",
+            "jaccard": 1.0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "n_pred": 0,
+            "n_truth": 0,
+            "n_intersect": 0,
+            "is_trivial": true
+          },
+          {
+            "region": "left_jaw",
+            "jaccard": 1.0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "n_pred": 0,
+            "n_truth": 0,
+            "n_intersect": 0,
+            "is_trivial": true
+          },
+          {
+            "region": "left_temple",
+            "jaccard": 1.0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "n_pred": 0,
+            "n_truth": 0,
+            "n_intersect": 0,
+            "is_trivial": true
+          },
+          {
+            "region": "lips",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 0,
+            "n_truth": 1,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "lower_lip",
+            "jaccard": 1.0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "n_pred": 0,
+            "n_truth": 0,
+            "n_intersect": 0,
+            "is_trivial": true
+          },
+          {
+            "region": "nose",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 0,
+            "n_truth": 1,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "right_cheek",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 0,
+            "n_truth": 1,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "right_eye",
+            "jaccard": 1.0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "n_pred": 0,
+            "n_truth": 0,
+            "n_intersect": 0,
+            "is_trivial": true
+          },
+          {
+            "region": "right_eyebrow",
+            "jaccard": 1.0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "n_pred": 0,
+            "n_truth": 0,
+            "n_intersect": 0,
+            "is_trivial": true
+          },
+          {
+            "region": "right_jaw",
+            "jaccard": 1.0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "n_pred": 0,
+            "n_truth": 0,
+            "n_intersect": 0,
+            "is_trivial": true
+          },
+          {
+            "region": "right_temple",
+            "jaccard": 1.0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "n_pred": 0,
+            "n_truth": 0,
+            "n_intersect": 0,
+            "is_trivial": true
+          },
+          {
+            "region": "upper_lip",
+            "jaccard": 1.0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "n_pred": 0,
+            "n_truth": 0,
+            "n_intersect": 0,
+            "is_trivial": true
+          }
+        ]
+      },
+      {
+        "image_id": "synth_face_01",
+        "mean_jaccard": 0.0,
+        "median_jaccard": 0.0,
+        "min_jaccard": 0.0,
+        "mean_f1": 0.0,
+        "regions": [
+          {
+            "region": "background",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 0,
+            "n_truth": 221,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "chin",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 0,
+            "n_truth": 1,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "face",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 0,
+            "n_truth": 68,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "forehead",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 0,
+            "n_truth": 12,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "hair",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 0,
+            "n_truth": 123,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "left_cheek",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 0,
+            "n_truth": 3,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "left_eye",
+            "jaccard": 1.0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "n_pred": 0,
+            "n_truth": 0,
+            "n_intersect": 0,
+            "is_trivial": true
+          },
+          {
+            "region": "left_eyebrow",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 0,
+            "n_truth": 1,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "left_jaw",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 0,
+            "n_truth": 3,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "left_temple",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 0,
+            "n_truth": 3,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "lips",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 0,
+            "n_truth": 4,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "lower_lip",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 0,
+            "n_truth": 2,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "nose",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 0,
+            "n_truth": 2,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "right_cheek",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 0,
+            "n_truth": 3,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "right_eye",
+            "jaccard": 1.0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "n_pred": 0,
+            "n_truth": 0,
+            "n_intersect": 0,
+            "is_trivial": true
+          },
+          {
+            "region": "right_eyebrow",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 0,
+            "n_truth": 2,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "right_jaw",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 0,
+            "n_truth": 6,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "right_temple",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 0,
+            "n_truth": 5,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "upper_lip",
+            "jaccard": 1.0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "n_pred": 0,
+            "n_truth": 0,
+            "n_intersect": 0,
+            "is_trivial": true
+          }
+        ]
+      },
+      {
+        "image_id": "synth_face_02",
+        "mean_jaccard": 0.05296056848214017,
+        "median_jaccard": 0.0,
+        "min_jaccard": 0.0,
+        "mean_f1": 0.08439470216039181,
+        "regions": [
+          {
+            "region": "background",
+            "jaccard": 0.07357859531772576,
+            "precision": 0.21782178217821782,
+            "recall": 0.1,
+            "f1": 0.1370716510903427,
+            "n_pred": 101,
+            "n_truth": 220,
+            "n_intersect": 22,
+            "is_trivial": false
+          },
+          {
+            "region": "chin",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 11,
+            "n_truth": 3,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "face",
+            "jaccard": 0.3,
+            "precision": 0.48148148148148145,
+            "recall": 0.4431818181818182,
+            "f1": 0.4615384615384615,
+            "n_pred": 81,
+            "n_truth": 88,
+            "n_intersect": 39,
+            "is_trivial": false
+          },
+          {
+            "region": "forehead",
+            "jaccard": 0.21428571428571427,
+            "precision": 0.3,
+            "recall": 0.42857142857142855,
+            "f1": 0.3529411764705882,
+            "n_pred": 20,
+            "n_truth": 14,
+            "n_intersect": 6,
+            "is_trivial": false
+          },
+          {
+            "region": "hair",
+            "jaccard": 0.34146341463414637,
+            "precision": 0.7088607594936709,
+            "recall": 0.3971631205673759,
+            "f1": 0.5090909090909091,
+            "n_pred": 79,
+            "n_truth": 141,
+            "n_intersect": 56,
+            "is_trivial": false
+          },
+          {
+            "region": "left_cheek",
+            "jaccard": 0.07692307692307693,
+            "precision": 0.1,
+            "recall": 0.25,
+            "f1": 0.14285714285714288,
+            "n_pred": 10,
+            "n_truth": 4,
+            "n_intersect": 1,
+            "is_trivial": false
+          },
+          {
+            "region": "left_eye",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 3,
+            "n_truth": 1,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "left_eyebrow",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 3,
+            "n_truth": 1,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "left_jaw",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 5,
+            "n_truth": 5,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "left_temple",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 4,
+            "n_truth": 3,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "lips",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 10,
+            "n_truth": 4,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "lower_lip",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 5,
+            "n_truth": 0,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "nose",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 11,
+            "n_truth": 2,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "right_cheek",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 10,
+            "n_truth": 5,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "right_eye",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 3,
+            "n_truth": 1,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "right_eyebrow",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 3,
+            "n_truth": 2,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "right_jaw",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 5,
+            "n_truth": 6,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "right_temple",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 4,
+            "n_truth": 4,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "upper_lip",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 5,
+            "n_truth": 0,
+            "n_intersect": 0,
+            "is_trivial": false
+          }
+        ]
+      },
+      {
+        "image_id": "synth_face_03",
+        "mean_jaccard": 0.0,
+        "median_jaccard": 0.0,
+        "min_jaccard": 0.0,
+        "mean_f1": 0.0,
+        "regions": [
+          {
+            "region": "background",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 0,
+            "n_truth": 214,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "chin",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 0,
+            "n_truth": 3,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "face",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 0,
+            "n_truth": 86,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "forehead",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 0,
+            "n_truth": 12,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "hair",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 0,
+            "n_truth": 133,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "left_cheek",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 0,
+            "n_truth": 3,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "left_eye",
+            "jaccard": 1.0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "n_pred": 0,
+            "n_truth": 0,
+            "n_intersect": 0,
+            "is_trivial": true
+          },
+          {
+            "region": "left_eyebrow",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 0,
+            "n_truth": 1,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "left_jaw",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 0,
+            "n_truth": 5,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "left_temple",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 0,
+            "n_truth": 4,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "lips",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 0,
+            "n_truth": 4,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "lower_lip",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 0,
+            "n_truth": 2,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "nose",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 0,
+            "n_truth": 6,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "right_cheek",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 0,
+            "n_truth": 3,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "right_eye",
+            "jaccard": 1.0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "n_pred": 0,
+            "n_truth": 0,
+            "n_intersect": 0,
+            "is_trivial": true
+          },
+          {
+            "region": "right_eyebrow",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 0,
+            "n_truth": 2,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "right_jaw",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 0,
+            "n_truth": 8,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "right_temple",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 0,
+            "n_truth": 3,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "upper_lip",
+            "jaccard": 1.0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "n_pred": 0,
+            "n_truth": 0,
+            "n_intersect": 0,
+            "is_trivial": true
+          }
+        ]
+      },
+      {
+        "image_id": "synth_face_04",
+        "mean_jaccard": 0.04039872197485993,
+        "median_jaccard": 0.0,
+        "min_jaccard": 0.0,
+        "mean_f1": 0.06629270678564674,
+        "regions": [
+          {
+            "region": "background",
+            "jaccard": 0.34674922600619196,
+            "precision": 0.6706586826347305,
+            "recall": 0.417910447761194,
+            "f1": 0.5149425287356323,
+            "n_pred": 167,
+            "n_truth": 268,
+            "n_intersect": 112,
+            "is_trivial": false
+          },
+          {
+            "region": "chin",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 7,
+            "n_truth": 2,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "face",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 0,
+            "n_truth": 63,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "forehead",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 29,
+            "n_truth": 11,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "hair",
+            "jaccard": 0.1724137931034483,
+            "precision": 0.8333333333333334,
+            "recall": 0.17857142857142858,
+            "f1": 0.29411764705882354,
+            "n_pred": 24,
+            "n_truth": 112,
+            "n_intersect": 20,
+            "is_trivial": false
+          },
+          {
+            "region": "left_cheek",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 16,
+            "n_truth": 3,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "left_eye",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 3,
+            "n_truth": 0,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "left_eyebrow",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 4,
+            "n_truth": 2,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "left_jaw",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 19,
+            "n_truth": 3,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "left_temple",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 4,
+            "n_truth": 3,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "lips",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 0,
+            "n_truth": 2,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "lower_lip",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 2,
+            "n_truth": 1,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "nose",
+            "jaccard": 0.05,
+            "precision": 0.058823529411764705,
+            "recall": 0.25,
+            "f1": 0.09523809523809523,
+            "n_pred": 17,
+            "n_truth": 4,
+            "n_intersect": 1,
+            "is_trivial": false
+          },
+          {
+            "region": "right_cheek",
+            "jaccard": 0.05555555555555555,
+            "precision": 0.0625,
+            "recall": 0.3333333333333333,
+            "f1": 0.10526315789473684,
+            "n_pred": 16,
+            "n_truth": 3,
+            "n_intersect": 1,
+            "is_trivial": false
+          },
+          {
+            "region": "right_eye",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 3,
+            "n_truth": 0,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "right_eyebrow",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 4,
+            "n_truth": 1,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "right_jaw",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 19,
+            "n_truth": 3,
+            "n_intersect": 0,
+            "is_trivial": false
+          },
+          {
+            "region": "right_temple",
+            "jaccard": 0.14285714285714285,
+            "precision": 0.25,
+            "recall": 0.25,
+            "f1": 0.25,
+            "n_pred": 4,
+            "n_truth": 4,
+            "n_intersect": 1,
+            "is_trivial": false
+          },
+          {
+            "region": "upper_lip",
+            "jaccard": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n_pred": 4,
+            "n_truth": 1,
+            "n_intersect": 0,
+            "is_trivial": false
+          }
+        ]
+      }
+    ]
+  },
+  "routing_decision": {
+    "global_route": "mediapipe",
+    "per_region_route": {
+      "background": "mediapipe",
+      "chin": "mediapipe",
+      "face": "mediapipe",
+      "forehead": "mediapipe",
+      "hair": "mediapipe",
+      "left_cheek": "mediapipe",
+      "left_eye": "mediapipe",
+      "left_eyebrow": "mediapipe",
+      "left_jaw": "mediapipe",
+      "left_temple": "mediapipe",
+      "lips": "mediapipe",
+      "lower_lip": "mediapipe",
+      "nose": "mediapipe",
+      "right_cheek": "mediapipe",
+      "right_eye": "mediapipe",
+      "right_eyebrow": "mediapipe",
+      "right_jaw": "mediapipe",
+      "right_temple": "mediapipe",
+      "upper_lip": "mediapipe"
+    },
+    "overall_mean_jaccard": 0.02663673229087288,
+    "global_threshold": 0.95,
+    "per_region_floor": 0.85,
+    "is_go": false,
+    "reason": "MEDIAPIPE \u2014 overall mean Jaccard 0.027 < global threshold 0.95. Opus is not yet trusted to write cell IDs. Ship MediaPipe; revisit after a model bump or after Opus prompt iteration."
+  }
+}

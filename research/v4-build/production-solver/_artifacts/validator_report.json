@@ -1,0 +1,108 @@
+{
+  "plan_id": "plan_1778985008482_1ad350a3",
+  "build_seconds": 0.1173553466796875,
+  "plate_count": 35,
+  "total_pulls": 144,
+  "cell_count": 1800,
+  "role_distribution": {
+    "underlayer_light": 8,
+    "local_chroma": 12,
+    "regional_mass": 11,
+    "key_detail": 4
+  },
+  "plate_not_composite_pass_rate": 1.0,
+  "role_purity_pass_rate": 1.0,
+  "plate_scores_summary": {
+    "min_badness": 0.30756134320372946,
+    "max_badness": 0.3562658247837572,
+    "mean_badness": 0.335688806974185,
+    "n_pass": 35,
+    "n_total": 35
+  },
+  "role_scores_summary": {
+    "min_purity": 1.0,
+    "max_purity": 1.0,
+    "mean_purity": 1.0,
+    "n_pass": 35,
+    "n_total": 35
+  },
+  "first_5_plate_scores": [
+    {
+      "block_id": 1,
+      "role": "underlayer_light",
+      "badness": 0.3556971331681603,
+      "passes": true,
+      "cosine_similarity": 0.7113942663363206,
+      "inked_area_fraction": 0.03533935546875
+    },
+    {
+      "block_id": 2,
+      "role": "underlayer_light",
+      "badness": 0.3551230142024144,
+      "passes": true,
+      "cosine_similarity": 0.7102460284048288,
+      "inked_area_fraction": 0.036376953125
+    },
+    {
+      "block_id": 3,
+      "role": "underlayer_light",
+      "badness": 0.3546200820081428,
+      "passes": true,
+      "cosine_similarity": 0.7092401640162856,
+      "inked_area_fraction": 0.03741455078125
+    },
+    {
+      "block_id": 4,
+      "role": "underlayer_light",
+      "badness": 0.3546219324349948,
+      "passes": true,
+      "cosine_similarity": 0.7092438648699896,
+      "inked_area_fraction": 0.037353515625
+    },
+    {
+      "block_id": 5,
+      "role": "underlayer_light",
+      "badness": 0.35537206856691494,
+      "passes": true,
+      "cosine_similarity": 0.7107441371338299,
+      "inked_area_fraction": 0.034912109375
+    }
+  ],
+  "first_5_role_scores": [
+    {
+      "block_id": 1,
+      "role": "underlayer_light",
+      "purity": 1.0,
+      "passes": true,
+      "n_cells": 22
+    },
+    {
+      "block_id": 2,
+      "role": "underlayer_light",
+      "purity": 1.0,
+      "passes": true,
+      "n_cells": 22
+    },
+    {
+      "block_id": 3,
+      "role": "underlayer_light",
+      "purity": 1.0,
+      "passes": true,
+      "n_cells": 22
+    },
+    {
+      "block_id": 4,
+      "role": "underlayer_light",
+      "purity": 1.0,
+      "passes": true,
+      "n_cells": 22
+    },
+    {
+      "block_id": 5,
+      "role": "underlayer_light",
+      "purity": 1.0,
+      "passes": true,
+      "n_cells": 22
+    }
+  ]
+}
